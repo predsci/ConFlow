@@ -1,14 +1,14 @@
 !#######################################################################
 !
-!       ______            _______ _             
-!      / _____)          (_______) |            
-!     | /      ___  ____  _____  | | ___  _ _ _ 
+!       ______            _______ _
+!      / _____)          (_______) |
+!     | /      ___  ____  _____  | | ___  _ _ _
 !     | |     / _ \|  _ \|  ___) | |/ _ \| | | |
 !     | \____| |_| | | | | |     | | |_| | | | |
 !      \______)___/|_| |_|_|     |_|\___/ \____|
 !
 !
-! ****** ConFlow: Super Granular Convective Flow Generator 
+! ****** ConFlow: Super Granular Convective Flow Generator
 !
 !     This program creates 1024 by 512 velocity maps of supergranules
 !     It constructs a spectrum of spherical harmonic amplitudes
@@ -17,10 +17,10 @@
 !
 !     The velocity vector (u,v) is in the (phi,theta) direction.
 !
-!     The data arrays are written to direct access disk files. 
+!     The data arrays are written to direct access disk files.
 !
 !     Differential rotation is simulated by evolving
-!     the spectral coefficients using 3-coefficient fits 
+!     the spectral coefficients using 3-coefficient fits
 !     (North-South symmetric)
 !
 !     Meridional flow is simulated by evolving
@@ -72,7 +72,6 @@ program conflow
   real coefDR(5),coefMF(6),MF0,MF1,MF2,MF3,MF4,MF5
   CHARACTER(len=255) :: cwd
 
-!  path='/Users/dhathawa/Documents/SynchronicMaps/FluxTransportFlows/'
   call getcwd(cwd)
   path= trim(cwd) // '/'
   lenPath=len(trim(path))
@@ -83,7 +82,7 @@ program conflow
 !c Change idum to create different realization
 !c  Re-initialize random number sequence
 !c                                                                      *
-  !c***********************************************************************
+!c***********************************************************************
   time=secnds(0.0)
   idum=int(time)
   call srand(idum)
@@ -122,7 +121,7 @@ program conflow
 !c***********************************************************************
 2 format(f7.2,1x,f7.2,1x,f7.2,1x,f7.2,1x,f7.2)
 3 format(f7.2,1x,f7.2,1x,f7.2,1x,f7.2,1x,f7.2,1x,f7.2)
-  open(unit=2,file=path(1:lenPath) // 'FlowCoefficientsV6.txt',status='old')
+  open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_v6.txt',status='old')
     read(2,2) t0,t1,t2,t3,t4
     write(*,*) t0,t1,t2,t3,t4
     coefDR(1)=t0*deltaT/rSun
@@ -133,7 +132,7 @@ program conflow
 !c***********************************************************************
 !c
 !c Meridional flow speed of supergranules in m/s poleward
-!c	
+!c
 !c***********************************************************************
     read(2,3) s0,s1,s2,s3,s4,s5
     write(*,*) s0,s1,s2,s3,s4,s5
@@ -192,7 +191,7 @@ program conflow
       el=float(l)
 !c
 !c Modify differential rotation and meridional flow with l (depth)
-!c	    
+!c
       elfunc=1.0
       elfuncMF=1.0
       DR0=elfunc*coefDR(1)
@@ -239,7 +238,7 @@ program conflow
       if ((l+4) .lt. lmax) then
         BAA0=1./(coef(l1+4,m1)*coef(l1+3,m1)*coef(l1+2,m1)*coef(l1+1,m1))
         OmegaP4(l1,m1)=em*BAA0*DR4
-	      
+
         BAA1=BAA0*BAALP5
         BAA2=BAA0*(BAALP4 + BAALP3 + BAALP2 + BAALP1 + BAALP0)
         MFlowP4(l1,m1)=-(el+5.)*BAA0*MF3 + ((el+4.)*BAA1-(el+5.)*BAA2)*MF5
@@ -250,7 +249,7 @@ program conflow
       if ((l+3) .lt. lmax) then
         BAA0=1./(coef(l1+3,m1)*coef(l1+2,m1)*coef(l1+1,m1))
         OmegaP3(l1,m1)=em*BAA0*DR3
-	      
+
         BAA1=BAA0*BAALP4
         BAA2=BAA0*(BAALP3 + BAALP2 + BAALP1 + BAALP0)
         MFlowP3(l1,m1)=-(el+4.)*BAA0*MF2 + ((el+3.)*BAA1-(el+4.)*BAA2)*MF4
@@ -290,7 +289,7 @@ program conflow
       BAA2=BAALP1+BAALP0
       BAA4=BAALP1*(BAALP2+BAALP1+BAALP0) + BAALP0*(BAALP1+BAALP0+BAALM1)
       Omega(l1,m1)=em*(DR0+BAA2*DR2+BAA4*DR4)
-	    
+
       BAA1=BAALP1
       BAA2=BAALP0
       BAA3=BAALP1*(BAALP2+BAALP1+BAALP0)
@@ -335,7 +334,7 @@ program conflow
 
         BAA2=BAA0*(BAALP1 + BAALP0 + BAALM1 + BAALM2)
         BAA3=BAA0*BAALM3
-        MFlowM3(l1,m1)=(el-3.)*BAA0*MF2 + ((el-3.)*BAA2-(el-2.)*BAA3)*MF4 
+        MFlowM3(l1,m1)=(el-3.)*BAA0*MF2 + ((el-3.)*BAA2-(el-2.)*BAA3)*MF4
       end if
 !c
 !c  Coupling with l-4 component
@@ -369,7 +368,9 @@ program conflow
 !c  Construct series of velocity maps at deltaT (in seconds) intervals
 !c
 !c***********************************************************************
+  !RMC: This needs to be an input param!
   nfiles=28*24*(3600/int(deltaT))
+
   write(*,*) 'A tile step of ', deltaT, 'in (s) will produce ', nfiles,' Vector velocity arrays.'
   do itime=1,nfiles
     ifile=1000+(itime-1)
@@ -419,8 +420,8 @@ program conflow
 !c  contribution from l+2 component
 !c
         if ((l+2) .lt. lmax-1) then
-         ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*s(l1+2,m1)	          
-         dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*t(l1+2,m1)	          
+         ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*s(l1+2,m1)
+         dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*t(l1+2,m1)
         end if
 !c
 !c  contribution from l+1 component
@@ -438,26 +439,26 @@ program conflow
 !c  contribution from l-1 component
 !c
         if ((l-1) .ge. m) then
-          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*s(l1-1,m1)	          
-          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*t(l1-1,m1)	          
+          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*s(l1-1,m1)
+          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*t(l1-1,m1)
         end if
 !c
 !c  contribution from l-2 component
 !c
         if ((l-2) .ge. m) then
-          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*s(l1-2,m1)	          
-          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*t(l1-2,m1)	          
+          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*s(l1-2,m1)
+          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*t(l1-2,m1)
         end if
 !c
 !c  contribution from l-3 component
 !c
         if ((l-3) .ge. m) then
-          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*s(l1-3,m1)	          
-          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*t(l1-3,m1)	          
+          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*s(l1-3,m1)
+          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*t(l1-3,m1)
         end if
 !c
 !c  contribution from l-4 component
-!c 
+!c
         if ((l-4) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*s(l1-4,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*t(l1-4,m1)
@@ -466,15 +467,15 @@ program conflow
 !c  contribution from l-5 component
 !c
         if ((l-5) .ge. m) then
-          ds(l1,m1,1)=ds(l1,m1,1)+MFlowM5(l1,m1)*s(l1-5,m1)	          
-          dt(l1,m1,1)=dt(l1,m1,1)+MFlowM5(l1,m1)*t(l1-5,m1)	          
+          ds(l1,m1,1)=ds(l1,m1,1)+MFlowM5(l1,m1)*s(l1-5,m1)
+          dt(l1,m1,1)=dt(l1,m1,1)+MFlowM5(l1,m1)*t(l1-5,m1)
         end if
 !c
 !c  contribution from l-6 component
 !c
         if ((l-6) .ge. m) then
-          ds(l1,m1,1)=ds(l1,m1,1)+MFlowM6(l1,m1)*s(l1-6,m1)	          
-          dt(l1,m1,1)=dt(l1,m1,1)+MFlowM6(l1,m1)*t(l1-6,m1)	          
+          ds(l1,m1,1)=ds(l1,m1,1)+MFlowM6(l1,m1)*s(l1-6,m1)
+          dt(l1,m1,1)=dt(l1,m1,1)+MFlowM6(l1,m1)*t(l1-6,m1)
         end if
       end do ! End l-loop step1
     end do ! End m-loop step1
@@ -800,11 +801,11 @@ program conflow
         el=float(l)
         xlifetime=10.*3600.*(100./(el+0.1))**2.0
         !        xlifetime=xlifetime/2.
-        
+
         phase=Omega(l1,m1)+2.*(rand()-0.5)*sqrt(deltaT/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         s(l1,m1)=(s(l1,m1) + ds(l1,m1,1)/6. + ds(l1,m1,2)/3. + ds(l1,m1,3)/3. + ds(l1,m1,4)/6.)*arg
-        
+
         phase=Omega(l1,m1)+2.*(rand()-0.5)*sqrt(deltaT/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         t(l1,m1)=(t(l1,m1) + dt(l1,m1,1)/6. + dt(l1,m1,2)/3. + dt(l1,m1,3)/3. + dt(l1,m1,4)/6.)*arg
@@ -902,11 +903,11 @@ program conflow
     write(*,*) 'Vector velocity arrays for step ',itime,' of ', nfiles,' calculated.'
     write(*,*) 'Vlat Max and min',maxval(v),minval(v)
     write(*,*) 'Vlon Max and min',maxval(u),minval(u)
-!c***********************************************************************
-!c                                                                      *
-!c  Write longitudinal and co-latitudinal velocity to disk file.
-!c                                                                      *
-!c***********************************************************************
+!***********************************************************************
+!                                                                      *
+!  Write longitudinal and co-latitudinal velocity to disk file.        *
+!                                                                      *
+!***********************************************************************
     n1000=int(ifile/1000)
     n100=int((ifile-1000*n1000)/100)
     n10=int((ifile-1000*n1000-100*n100)/10)
@@ -927,7 +928,3 @@ program conflow
     close(1)
   enddo ! End time-loop
 end program conflow
-
-
-
- 
