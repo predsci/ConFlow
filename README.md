@@ -1,4 +1,4 @@
-######![ConFlow](conflow_logo_small.png)
+![ConFlow](conflow_logo_small.png)
   
 # ConFlow: Super Granular Convective Flow Generator 
   
