@@ -1,9 +1,8 @@
 ######################################
 # Conflow
 ######################################
-###############
 
-FFLAGS=-O3 -march=native -ftree-parallelize-loops=6
+FFLAGS=-O3 -march=native -ftree-parallelize-loops=${OMP_NUM_THREADS}
 
 conflow : conflow.o plmcoef.o plm.o four1.o
 	gfortran ${FFLAGS} -o conflow conflow.o plmcoef.o plm.o four1.o
