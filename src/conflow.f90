@@ -913,6 +913,8 @@ program conflow
     n10=int((ifile-1000*n1000-100*n100)/10)
     n1=ifile-1000*n1000-100*n100-10*n10
 
+    ! [RMC] INSERT PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
+
     fname='Vlon_' //char(48+n1000) //char(48+n100) // char(48+n10) //char(48+n1)
     open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=4*nphi)
       do j=1,nl
