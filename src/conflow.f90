@@ -30,7 +30,7 @@
 !                  Ronald M. Caplan
 !                  David H. Hathaway
 !
-!     Code originally derived from SynchronicMapsSupergranulesV6_15m.f90
+!     Code originally derived from SynchronicMapsSupergranulesV6.f90
 !     by David H. Hathaway
 !
 !#######################################################################
@@ -49,17 +49,43 @@
 ! See the License for the specific language governing permissions and
 ! limitations under the License.
 !#######################################################################
-
+!
+!#######################################################################
+module ident
+!
+!-----------------------------------------------------------------------
+! ****** Set the name, version, and date of code.
+!-----------------------------------------------------------------------
+!
+      character(*), parameter :: cname='Conflow'
+      character(*), parameter :: cvers='0.1.2'
+      character(*), parameter :: cdate='05/20/2022'
+!
+end module
+!#######################################################################
 program conflow
+!
+!-----------------------------------------------------------------------
+!
+  implicit none
+!
+!-----------------------------------------------------------------------
+!
+  integer nx,nl,nphi
 
   parameter (nx=1024,nl=512,nphi=1024)
-  character fname*9,ext*5,path*100
-  complex s(nl,nl),ds(nl,nl,4)
-  complex t(nl,nl),dt(nl,nl,4)
-  complex xi,arg,argRan,sum1,sum2,sum3,sum4
-  complex unorth(nphi),usouth(nphi)
-  complex vnorth(nphi),vsouth(nphi)
-  complex ctemp2D(nx,nx),ctemp1D(nx)
+
+  character fname*9,ext*5,path*100,velFileNum*4
+
+  integer i,j,l,m,l1,m1,l2,m2,jn,js
+  integer lmax,lenPath,nlhalf,idum,ifile,nfiles,itime
+
+  real pi,root3,root5,root7,root9
+  real rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2,time
+  real s0,s1,s2,s3,s4,s5,t0,t1,t2,t3,t4,el,em,amp2,amp3,randamp,phase,taper,xlifetime
+  real elfunc,elfuncMF,DR0,DR1,DR2,DR3,DR4,MF0,MF1,MF2,MF3,MF4,MF5
+  real BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3,BAALP4,BAALP5
+  real BAA0,BAA1,BAA2,BAA3,BAA4,BAA5,BAA6
   real u(nphi,nl),v(nphi,nl)
   real coef(nl,nl),p(nl)
   real Omega(nl,nl)
@@ -69,11 +95,16 @@ program conflow
   real MFlowM1(nl,nl),MFlowM2(nl,nl),MFlowM3(nl,nl),MFlowM4(nl,nl)
   real MFlowP1(nl,nl),MFlowP2(nl,nl),MFlowP3(nl,nl),MFlowP4(nl,nl)
   real MFlowP5(nl,nl),MFlowM5(nl,nl),MFlowP6(nl,nl),MFlowM6(nl,nl)
-  real coefDR(5),coefMF(6),MF0,MF1,MF2,MF3,MF4,MF5
-  CHARACTER(len=255) :: cwd
+  real coefDR(5),coefMF(6)
 
-  call getcwd(cwd)
-  path= trim(cwd) // '/'
+  complex s(nl,nl),ds(nl,nl,4)
+  complex t(nl,nl),dt(nl,nl,4)
+  complex xi,arg,argRan,sum1,sum2,sum3,sum4
+  complex unorth(nphi),usouth(nphi)
+  complex vnorth(nphi),vsouth(nphi)
+  complex ctemp2D(nx,nx),ctemp1D(nx)
+
+  path= './'
   lenPath=len(trim(path))
   lmax=nl-1
   nlhalf=nl/2
@@ -119,8 +150,8 @@ program conflow
 !c  Differential Rotation coefficients m/s relative to Carrington
 !c                                                                      *
 !c***********************************************************************
-2 format(f7.2,1x,f7.2,1x,f7.2,1x,f7.2,1x,f7.2)
-3 format(f7.2,1x,f7.2,1x,f7.2,1x,f7.2,1x,f7.2,1x,f7.2)
+2 format(5(4x,f8.3))
+3 format(6(4x,f8.3))
   open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_v6.txt',status='old')
     read(2,2) t0,t1,t2,t3,t4
     write(*,*) t0,t1,t2,t3,t4
@@ -908,21 +939,18 @@ program conflow
 !  Write longitudinal and co-latitudinal velocity to disk file.        *
 !                                                                      *
 !***********************************************************************
-    n1000=int(ifile/1000)
-    n100=int((ifile-1000*n1000)/100)
-    n10=int((ifile-1000*n1000-100*n100)/10)
-    n1=ifile-1000*n1000-100*n100-10*n10
 
-    ! [RMC] INSERT PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
+!  [RMC] INSERT PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
 
-    fname='Vlon_' //char(48+n1000) //char(48+n100) // char(48+n10) //char(48+n1)
+    write(velFileNum, '(i4)') ifile
+    fname='Vlon_' // velFileNum
     open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=4*nphi)
       do j=1,nl
         write(1,rec=j) (u(i,j),i=1,nphi)
       end do
     close(1)
 
-    fname='Vlat_' //char(48+n1000) //char(48+n100) // char(48+n10) //char(48+n1)
+    fname='Vlat_' // velFileNum
     open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=4*nphi)
       do j=1,nl
         write(1,rec=j) (v(i,j),i=1,nphi)
@@ -930,3 +958,15 @@ program conflow
     close(1)
   enddo ! End time-loop
 end program conflow
+
+!#######################################################################
+!
+!-----------------------------------------------------------------------
+!
+! ****** Update log:
+!
+! 05/20/2022, RC, Version 0.1.2:
+!   - Merged updates from Raphael's version.
+!-----------------------------------------------------------------------
+!
+!#######################################################################
