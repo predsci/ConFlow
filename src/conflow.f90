@@ -58,12 +58,30 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.1.2'
-      character(*), parameter :: cdate='05/20/2022'
+      character(*), parameter :: cvers='0.2.0'
+      character(*), parameter :: cdate='06/07/2022'
+!
+end module
+!#######################################################################
+module number_types
+!
+!-----------------------------------------------------------------------
+! ****** Set precisions for REALs.
+!-----------------------------------------------------------------------
+!
+      use iso_fortran_env
+!
+! ****** Use double precision.
+!
+      integer, parameter :: r_typ = REAL64
 !
 end module
 !#######################################################################
 program conflow
+!
+!-----------------------------------------------------------------------
+!
+  use number_types
 !
 !-----------------------------------------------------------------------
 !
@@ -77,7 +95,7 @@ program conflow
 
   character fname*9,ext*5,path*100,velFileNum*4
 
-  integer i,j,l,m,l1,m1,l2,m2,jn,js
+  integer i,j,l,m,l1,m1,l2,m2,jn,js,ierr
   integer lmax,lenPath,nlhalf,idum,ifile,nfiles,itime
 
   real pi,root3,root5,root7,root9
@@ -96,7 +114,9 @@ program conflow
   real MFlowP1(nl,nl),MFlowP2(nl,nl),MFlowP3(nl,nl),MFlowP4(nl,nl)
   real MFlowP5(nl,nl),MFlowM5(nl,nl),MFlowP6(nl,nl),MFlowM6(nl,nl)
   real coefDR(5),coefMF(6)
-
+!
+  real(r_typ), dimension(:), allocatable :: tvec,pvec
+!
   complex s(nl,nl),ds(nl,nl,4)
   complex t(nl,nl),dt(nl,nl,4)
   complex xi,arg,argRan,sum1,sum2,sum3,sum4
@@ -145,6 +165,20 @@ program conflow
   deltaT=15.*60.
   dphi=2.*pi/nphi
   dtheta=pi/nl
+!
+! ****** Set up theta and phi 1D scale arrays.
+!
+  allocate(tvec(nl))
+  allocate(pvec(nphi))
+
+  do i=1,nl
+    tvec(i)=dtheta*0.5+(i-1)*dtheta
+  enddo
+!
+  do i=1,nphi
+    pvec(i)=dphi*0.5+(i-1)*dphi
+  enddo
+!
 !***********************************************************************
 !c                                                                      *
 !c  Differential Rotation coefficients m/s relative to Carrington
@@ -401,7 +435,7 @@ program conflow
 !c***********************************************************************
   !RMC: This needs to be an input param!
   nfiles=28*24*(3600/int(deltaT))
-
+!
   write(*,*) 'A tile step of ', deltaT, 'in (s) will produce ', nfiles,' Vector velocity arrays.'
   do itime=1,nfiles
     ifile=1000+(itime-1)
@@ -915,11 +949,11 @@ program conflow
         vnorth(m1)=0.
         vsouth(m1)=0.
       end do
-!c***********************************************************************
-!c                                                                      *
-!c  Calculate the vector velocity components at all phi positions.      *
-!c                                                                      *
-!c***********************************************************************
+!***********************************************************************
+!                                                                      *
+!  Calculate the vector velocity components at all phi positions.      *
+!                                                                      *
+!***********************************************************************
       call four1(unorth,nphi,-1)
       call four1(usouth,nphi,-1)
       call four1(vnorth,nphi,-1)
@@ -931,7 +965,8 @@ program conflow
         v(i,js)=real(vsouth(i))
       end do ! End phi-loop
     end do ! End latitude-loop
-    write(*,*) 'Vector velocity arrays for step ',itime,' of ', nfiles,' calculated.'
+    write(*,*) 'Vector velocity arrays for step ',itime,' of ', &
+               nfiles,' calculated.'
     write(*,*) 'Vlat Max and min',maxval(v),minval(v)
     write(*,*) 'Vlon Max and min',maxval(u),minval(u)
 !***********************************************************************
@@ -944,21 +979,100 @@ program conflow
 
     write(velFileNum, '(i4)') ifile
     fname='Vlon_' // velFileNum
-    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=4*nphi)
+    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
+         status='unknown',recl=4*nphi)
       do j=1,nl
         write(1,rec=j) (u(i,j),i=1,nphi)
       end do
     close(1)
-
+!
+    call write_2d_file (fname//'.h5',nphi,nl,u,pvec,tvec,ierr)
+!
     fname='Vlat_' // velFileNum
-    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=4*nphi)
+    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
+         status='unknown',recl=4*nphi)
       do j=1,nl
         write(1,rec=j) (v(i,j),i=1,nphi)
       enddo
     close(1)
+!
+    call write_2d_file (fname//'.h5',nphi,nl,v,pvec,tvec,ierr)
+!
   enddo ! End time-loop
 end program conflow
-
+!#######################################################################
+subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
+!
+!-----------------------------------------------------------------------
+!
+! ****** Write 2D data to H5 file FNAME.
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use ds_def
+!      use timing
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      character(*) :: fname
+      real, dimension(ln1,ln2) :: f
+      real(r_typ), dimension(ln1) :: s1
+      real(r_typ), dimension(ln2) :: s2
+      integer :: ln1,ln2
+      real(r_typ) :: t1,wtime
+!
+!-----------------------------------------------------------------------
+!
+      type(ds) :: s
+      integer :: ierr
+!
+!-----------------------------------------------------------------------
+!
+!      t1 = wtime()
+!
+! ****** Set the structure components.
+!
+      s%ndim = 2
+      s%dims(1) = ln1
+      s%dims(2) = ln2
+      s%dims(3) = 1
+      s%scale = .true.
+      s%hdf32 = .true.
+!
+      allocate (s%scales(1)%f(ln1))
+      allocate (s%scales(2)%f(ln2))
+      allocate (s%f(ln1,ln2,1))
+!
+      s%scales(1)%f(:) = s1(:)
+      s%scales(2)%f(:) = s2(:)
+      s%f(:,:,1) = f(:,:)
+!
+! ****** Write the data set.
+!
+      call wrh5 (fname,s,ierr)
+!
+      if (ierr.ne.0) then
+        write (*,*)
+        write (*,*) '### ERROR in WRITE_2D_FILE:'
+        write (*,*) '### Could not write the 2D data set.'
+        write (*,*) 'File name: ',trim(fname)
+        return
+      end if
+!
+! ****** Free up memory.
+!
+      deallocate (s%scales(1)%f)
+      deallocate (s%scales(2)%f)
+      deallocate (s%f)
+!
+!      wtime_io = wtime_io + (wtime() - t1)
+!
+end subroutine
 !#######################################################################
 !
 !-----------------------------------------------------------------------
@@ -967,6 +1081,9 @@ end program conflow
 !
 ! 05/20/2022, RC, Version 0.1.2:
 !   - Merged updates from Raphael's version.
+!
+! 06/07/2022, RC, Version 0.2.0:
+!   - Added initial hdf5 output.
 !-----------------------------------------------------------------------
 !
 !#######################################################################
