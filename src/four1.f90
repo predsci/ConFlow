@@ -1,22 +1,43 @@
-subroutine four1(cdata,nn,isign)
-  INTEGER isign,nn
-  COMPLEX cdata(nn)
-  REAL rdata(2*nn)
-  INTEGER i,istep,j,m,mmax,n
-  REAL tempi,tempr
-  DOUBLE PRECISION theta,wi,wpi,wpr,wr,wtemp
-  n=2*nn
+subroutine four1 (cdata,nn,isign)
 !
-! Pack complex data into real array
-!      
+!-----------------------------------------------------------------------
+!
+! ****** FOUR1.  Fourier transform.
+!
+!-----------------------------------------------------------------------
+!
+  use iso_fortran_env
+!
+!-----------------------------------------------------------------------
+!
+  implicit none
+!
+!-----------------------------------------------------------------------
+!
+  integer, parameter :: r_typ = REAL64
+!
+!-----------------------------------------------------------------------
+!
+  integer :: isign,nn
+  complex(r_typ) :: cdata(nn)
+  real(r_typ) :: rdata(2*nn)
+  integer i,istep,j,m,mmax,n
+  real(r_typ) :: tempi,tempr
+  real(r_typ) :: theta,wi,wpi,wpr,wr,wtemp
+!
+!-----------------------------------------------------------------------
+!  
+  n = 2*nn
+!
+! ****** Pack complex data into real array
+!
   do i=1,n,2
-    rdata(i)=real(cdata((i+1)/2))
-    rdata(i+1)=imag(cdata((i+1)/2))
-  end do
+    rdata(i)   = real(cdata((i+1)/2),r_typ)
+    rdata(i+1) = aimag(cdata((i+1)/2))
+  enddo
 !
-! Fourier transform
+! ****** Fourier transform
 !
- 
   j=1
   do i=1,n,2
     if (j.gt.i) then
@@ -34,21 +55,22 @@ subroutine four1(cdata,nn,isign)
       goto 1
     end if
     j=j+m
-  end do
+  enddo
 
-  mmax=2
+  mmax = 2
+!  
 2 if (n.gt.mmax) then
     istep=2*mmax
-    theta=6.28318530717959d0/(isign*mmax)
-    wpr=-2.d0*sin(0.5d0*theta)**2
+    theta=6.28318530717959_r_typ/(isign*mmax)
+    wpr=-2.0_r_typ*sin(0.5_r_typ*theta)**2
     wpi=sin(theta)
-    wr=1.d0
-    wi=0.d0
+    wr=1.0_r_typ
+    wi=0.
     do m=1,mmax,2
       do i=m,n,istep
         j=i+mmax
-        tempr=sngl(wr)*rdata(j)-sngl(wi)*rdata(j+1)
-        tempi=sngl(wr)*rdata(j+1)+sngl(wi)*rdata(j)
+        tempr=real(wr,r_typ)*rdata(j)-real(wi,r_typ)*rdata(j+1)
+        tempi=real(wr,r_typ)*rdata(j+1)+real(wi,r_typ)*rdata(j)
         rdata(j)=rdata(i)-tempr
         rdata(j+1)=rdata(i+1)-tempi
         rdata(i)=rdata(i)+tempr
@@ -62,10 +84,10 @@ subroutine four1(cdata,nn,isign)
    goto 2
   end if
 !
-! Pack real data back into complex array
-!      
+! ****** Pack real data back into complex array
+!
   do i=1,nn
-    cdata(i)=rdata(2*i-1) + (0.,1.)*rdata(2*i)
-  end do
-  return
+    cdata(i) = rdata(2*i-1) + (0.,1.0_r_typ)*rdata(2*i)
+  enddo
+!  
 end subroutine four1

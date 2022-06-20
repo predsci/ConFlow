@@ -8,8 +8,26 @@ subroutine plm(m,x,lmaxp,coef,p)
 !  The results, p(l,m,x), are returned in array p(l+1).
 !
 !***********************************************************************
-  real*4 p(lmaxp),coef(lmaxp,lmaxp)
-  integer lls
+!
+  use iso_fortran_env
+!
+!***********************************************************************
+!
+  implicit none
+!
+!-----------------------------------------------------------------------
+!
+  integer, parameter :: r_typ = REAL64
+!
+!-----------------------------------------------------------------------
+!
+  integer :: m,lmaxp
+  real(r_typ) :: x
+!
+!***********************************************************************
+!
+  real(r_typ) :: p(lmaxp),coef(lmaxp,lmaxp)
+  integer :: lls
 !***********************************************************************
 !
 !  lls is the index to the first non-zero p.                           *
@@ -17,12 +35,12 @@ subroutine plm(m,x,lmaxp,coef,p)
 !   If all p's are zero; i.e., .lt. 10**minlp, then lls=lmaxp+1        *
 !
 !***********************************************************************
-  integer l,ll,mm,lp,lp1
+  integer :: l,ll,mm,lp,lp1,lmax,isgn
   integer :: minlp = -20
-  real    x2,alp,pa,pm1,pm2
-  real, dimension(20) :: rlpa
-  real :: r10p10 = 1.0e+10
-  real :: r10m10 = 1.0e-10
+  real(r_typ) :: x2,alp,pa,pm1,pm2
+  real(r_typ), dimension(20) :: rlpa
+  real(r_typ) :: r10p10 = 1.0e+10
+  real(r_typ) :: r10m10 = 1.0e-10
 
   rlpa = (/1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-5, &
            1.0e-6, 1.0e-7, 1.0e-8, 1.0e-9, 1.0e-10,&
@@ -61,13 +79,13 @@ subroutine plm(m,x,lmaxp,coef,p)
     return
   end if
 
-  if (abs(x) .eq. 1.)return
+  if (abs(x) .eq. 1.) return
 
   x2=sqrt(1.-x*x)
-  alp=alog10(coef(mm,mm))+float(m)*alog10(x2)
-  lp=alp
+  alp=log10(coef(mm,mm))+real(m,r_typ)*log10(x2)
+  lp=int(alp)
   if (lp .lt. minlp) then
-    alp=alp-float(lp)
+    alp=alp-real(lp,r_typ)
     pa=10.0**alp
     lls=mm+1
   else

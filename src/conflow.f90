@@ -58,22 +58,22 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.2.0'
-      character(*), parameter :: cdate='06/07/2022'
+      character(*), parameter :: cvers='0.3.0'
+      character(*), parameter :: cdate='06/20/2022'
 !
 end module
 !#######################################################################
-module number_types
+module timing
 !
-!-----------------------------------------------------------------------
-! ****** Set precisions for REALs.
-!-----------------------------------------------------------------------
+      use number_types
 !
-      use iso_fortran_env
+      implicit none
 !
-! ****** Use double precision.
+      real(r_typ) :: wtime_tmp = 0.
 !
-      integer, parameter :: r_typ = REAL64
+      real(r_typ) :: wtime_io = 0.
+!
+      real(r_typ) :: wtime_total = 0.
 !
 end module
 !#######################################################################
@@ -82,6 +82,7 @@ program conflow
 !-----------------------------------------------------------------------
 !
   use number_types
+  use timing
 !
 !-----------------------------------------------------------------------
 !
@@ -89,81 +90,97 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
-  integer nx,nl,nphi
+  integer :: nl,nphi
 
-  parameter (nx=1024,nl=512,nphi=1024)
+  parameter (nl=512,nphi=1024)
 
-  character fname*9,ext*5,path*100,velFileNum*4
+  character :: fname*9,ext*5,path*100,velFileNum*4
 
-  integer i,j,l,m,l1,m1,l2,m2,jn,js,ierr
-  integer lmax,lenPath,nlhalf,idum,ifile,nfiles,itime
+  integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr
+  integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
 
-  real pi,root3,root5,root7,root9
-  real rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2,time
-  real s0,s1,s2,s3,s4,s5,t0,t1,t2,t3,t4,el,em,amp2,amp3,randamp,phase,taper,xlifetime
-  real elfunc,elfuncMF,DR0,DR1,DR2,DR3,DR4,MF0,MF1,MF2,MF3,MF4,MF5
-  real BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3,BAALP4,BAALP5
-  real BAA0,BAA1,BAA2,BAA3,BAA4,BAA5,BAA6
-  real u(nphi,nl),v(nphi,nl)
-  real coef(nl,nl),p(nl)
-  real Omega(nl,nl)
-  real OmegaM1(nl,nl),OmegaM2(nl,nl),OmegaM3(nl,nl),OmegaM4(nl,nl)
-  real OmegaP1(nl,nl),OmegaP2(nl,nl),OmegaP3(nl,nl),OmegaP4(nl,nl)
-  real MFlow0(nl,nl)
-  real MFlowM1(nl,nl),MFlowM2(nl,nl),MFlowM3(nl,nl),MFlowM4(nl,nl)
-  real MFlowP1(nl,nl),MFlowP2(nl,nl),MFlowP3(nl,nl),MFlowP4(nl,nl)
-  real MFlowP5(nl,nl),MFlowM5(nl,nl),MFlowP6(nl,nl),MFlowM6(nl,nl)
-  real coefDR(5),coefMF(6)
+  real(r_typ) :: pi,root3,root5,root7,root9
+  real(r_typ) :: rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
+  real(r_typ) :: s0,s1,s2,s3,s4,s5,t0,t1,t2,t3,t4,el,em,amp2,amp3,randamp,phase,taper,xlifetime
+  real(r_typ) :: elfunc,elfuncMF,DR0,DR1,DR2,DR3,DR4,MF0,MF1,MF2,MF3,MF4,MF5
+  real(r_typ) :: BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3,BAALP4,BAALP5
+  real(r_typ) :: BAA0,BAA1,BAA2,BAA3,BAA4,BAA5,BAA6
+  real(r_typ) :: u(nphi,nl),v(nphi,nl)
+  real(r_typ) :: coef(nl,nl),p(nl)
+  real(r_typ) :: Omega(nl,nl)
+  real(r_typ) :: OmegaM1(nl,nl),OmegaM2(nl,nl),OmegaM3(nl,nl),OmegaM4(nl,nl)
+  real(r_typ) :: OmegaP1(nl,nl),OmegaP2(nl,nl),OmegaP3(nl,nl),OmegaP4(nl,nl)
+  real(r_typ) :: MFlow0(nl,nl)
+  real(r_typ) :: MFlowM1(nl,nl),MFlowM2(nl,nl),MFlowM3(nl,nl),MFlowM4(nl,nl)
+  real(r_typ) :: MFlowP1(nl,nl),MFlowP2(nl,nl),MFlowP3(nl,nl),MFlowP4(nl,nl)
+  real(r_typ) :: MFlowP5(nl,nl),MFlowM5(nl,nl),MFlowP6(nl,nl),MFlowM6(nl,nl)
+  real(r_typ) :: coefDR(5),coefMF(6)
 !
   real(r_typ), dimension(:), allocatable :: tvec,pvec
+  real(r_typ) :: wt1,wtime
+  real(r_typ) :: rnd
 !
-  complex s(nl,nl),ds(nl,nl,4)
-  complex t(nl,nl),dt(nl,nl,4)
-  complex xi,arg,argRan,sum1,sum2,sum3,sum4
-  complex unorth(nphi),usouth(nphi)
-  complex vnorth(nphi),vsouth(nphi)
-  complex ctemp2D(nx,nx),ctemp1D(nx)
-
+  complex(r_typ) :: s(nl,nl),ds(nl,nl,4)
+  complex(r_typ) :: t(nl,nl),dt(nl,nl,4)
+  complex(r_typ) :: xi,arg,sum1,sum2,sum3,sum4
+  complex(r_typ) :: unorth(nphi),usouth(nphi)
+  complex(r_typ) :: vnorth(nphi),vsouth(nphi)
+!
+  integer :: seed_n
+  integer, allocatable, dimension(:) :: seed_old,seed_new
+!
+!-----------------------------------------------------------------------
+!
+! ****** Start wall clock timer.
+!
+  wtime_tmp = wtime()
+!
+!-----------------------------------------------------------------------
+!
   path= './'
+  fname='fake_1000'
+  ext='.data'  
   lenPath=len(trim(path))
   lmax=nl-1
   nlhalf=nl/2
-!c***********************************************************************
-!c
-!c Change idum to create different realization
-!c  Re-initialize random number sequence
-!c                                                                      *
-!c***********************************************************************
-  time=secnds(0.0)
-  idum=int(time)
-  call srand(idum)
-  fname='fake_1000'
-  ext='.data'
+!
+! ****** Initialize random number generator.
+! ****** Set a specific seed for reproducibility.
+! ****** Later this shoudl be made into an option!!!! [RMC]
+!
+  call RANDOM_INIT (.true., .true.)
+  call RANDOM_SEED (size=seed_n)
+  allocate (seed_old(seed_n))
+  allocate (seed_new(seed_n))
+  call RANDOM_SEED(get=seed_old)
+  seed_new(:)=12345
+  call RANDOM_SEED(put=seed_new)
+!  
 !c***********************************************************************
 !c                                                                      *
 !c  Numeric constants
 !c                                                                      *
 !c***********************************************************************
-  pi=4.*atan(1.0)
-  root3=sqrt(3.)
-  root5=sqrt(5.)
-  root7=sqrt(7.)
-  root9=sqrt(9.)
-  xi=(0.,1.)
+  pi=4.0_r_typ*atan(1.0_r_typ)
+  root3=sqrt(3.0_r_typ)
+  root5=sqrt(5.0_r_typ)
+  root7=sqrt(7.0_r_typ)
+  root9=sqrt(9.0_r_typ)
+  xi=(0.,1.0_r_typ)
 !c***********************************************************************
 !c                                                                      *
 !c  Physical constants
 !c                                                                      *
 !c***********************************************************************
   rSun=6.96e+08
-  daySec=86400.
+  daySec=86400.0_r_typ
 !c***********************************************************************
 !c                                                                      *
 !c  Time (seconds) and space (radians) steps
 !c                                                                      *
 !c***********************************************************************
-  deltaT=15.*60.
-  dphi=2.*pi/nphi
+  deltaT=15.0_r_typ*60.0_r_typ
+  dphi=2.0_r_typ*pi/nphi
   dtheta=pi/nl
 !
 ! ****** Set up theta and phi 1D scale arrays.
@@ -172,11 +189,11 @@ program conflow
   allocate(pvec(nphi))
 
   do i=1,nl
-    tvec(i)=dtheta*0.5+(i-1)*dtheta
+    tvec(i)=dtheta*0.5_r_typ+(i-1)*dtheta
   enddo
 !
   do i=1,nphi
-    pvec(i)=dphi*0.5+(i-1)*dphi
+    pvec(i)=dphi*0.5_r_typ+(i-1)*dphi
   enddo
 !
 !***********************************************************************
@@ -220,25 +237,29 @@ program conflow
 !c  Construct the convection spectrum.                                  *
 !c                                                                      *
 !c***********************************************************************
-  write(*,*) 'calculating spectrum'
+  write(*,*) 'Calculating spectrum'
   do l=1,lmax
     l1=l+1
     el=float(l)
     amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
     amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
     taper=1.0
-    if (l .gt. 384) taper=0.5*(1.0 + cos(pi*(l-384.)/(512.-384.)))
+    if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(512.0_r_typ-384.0_r_typ)))
     amp2 = taper*amp2
     amp3 = taper*amp3
     do m=1,l
       m1=m+1
-      phase=2.*pi*rand()
+      call RANDOM_NUMBER (rnd)
+      phase=2.0_r_typ*pi*rnd
       arg=cos(phase)+xi*sin(phase)
-      randamp=1.8*rand()
+      call RANDOM_NUMBER (rnd)
+      randamp=1.8*rnd
       s(l1,m1)=randamp*amp2*arg
-      phase=2.*pi*rand()
+      call RANDOM_NUMBER (rnd)
+      phase=2.*pi*rnd
       arg=cos(phase)+xi*sin(phase)
-      randamp=1.8*rand()
+      call RANDOM_NUMBER (rnd)
+      randamp=1.8*rnd
       t(l1,m1)=randamp*amp3*arg
     end do
   end do
@@ -439,7 +460,7 @@ program conflow
   write(*,*) 'A tile step of ', deltaT, 'in (s) will produce ', nfiles,' Vector velocity arrays.'
   do itime=1,nfiles
     ifile=1000+(itime-1)
-!    goto 500
+!
 !c***********************************************************************
 !c
 !c  Evolve spectral coefficients using 4th order Runga-Kutta
@@ -560,90 +581,90 @@ program conflow
 !c  contribution from l+6 component
 !c
         if ((l+6) .lt. lmax-1) then
-          ds(l1,m1,2)=ds(l1,m1,2)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,1)/2.)*cexp(xi*Omega(l1+6,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,1)/2.)*cexp(xi*Omega(l1+6,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,1)/2.)*exp(xi*Omega(l1+6,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,1)/2.)*exp(xi*Omega(l1+6,m1)/2.)
         end if
 !c
 !c  contribution from l+5 component
 !c
         if ((l+5) .lt. lmax-1) then
-          ds(l1,m1,2)=ds(l1,m1,2)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,1)/2.)*cexp(xi*Omega(l1+5,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,1)/2.)*cexp(xi*Omega(l1+5,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,1)/2.)*exp(xi*Omega(l1+5,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,1)/2.)*exp(xi*Omega(l1+5,m1)/2.)
         end if
 !c
 !c  contribution from l+4 component
 !c
         if ((l+4) .lt. lmax-1) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,1)/2.)*cexp(xi*Omega(l1+4,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,1)/2.)*cexp(xi*Omega(l1+4,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,1)/2.)*exp(xi*Omega(l1+4,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,1)/2.)*exp(xi*Omega(l1+4,m1)/2.)
         end if
 !c
 !c  contribution from l+3 component
 !c
         if ((l+3) .lt. lmax-1) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,1)/2.)*cexp(xi*Omega(l1+3,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,1)/2.)*cexp(xi*Omega(l1+3,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,1)/2.)*exp(xi*Omega(l1+3,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,1)/2.)*exp(xi*Omega(l1+3,m1)/2.)
         end if
 !c
 !c  contribution from l+2 component
 !c
         if ((l+2) .lt. lmax-1) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,1)/2.)*cexp(xi*Omega(l1+2,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,1)/2.)*cexp(xi*Omega(l1+2,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,1)/2.)*exp(xi*Omega(l1+2,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,1)/2.)*exp(xi*Omega(l1+2,m1)/2.)
         end if
 !c
 !c  contribution from l+1 component
 !c
         if ((l+1) .lt. lmax-1) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,1)/2.)*cexp(xi*Omega(l1+1,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,1)/2.)*cexp(xi*Omega(l1+1,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,1)/2.)*exp(xi*Omega(l1+1,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,1)/2.)*exp(xi*Omega(l1+1,m1)/2.)
         end if
 !c
 !c  contribution from l component
 !c
-        ds(l1,m1,2)=ds(l1,m1,2)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,1)/2.)*cexp(xi*Omega(l1,m1)/2.)
-        dt(l1,m1,2)=dt(l1,m1,2)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,1)/2.)*cexp(xi*Omega(l1,m1)/2.)
+        ds(l1,m1,2)=ds(l1,m1,2)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,1)/2.)*exp(xi*Omega(l1,m1)/2.)
+        dt(l1,m1,2)=dt(l1,m1,2)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,1)/2.)*exp(xi*Omega(l1,m1)/2.)
 !c
 !c  contribution from l-1 component
 !c
         if ((l-1) .ge. m) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,1)/2.)*cexp(xi*Omega(l1-1,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,1)/2.)*cexp(xi*Omega(l1-1,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,1)/2.)*exp(xi*Omega(l1-1,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,1)/2.)*exp(xi*Omega(l1-1,m1)/2.)
         end if
 !c
 !c  contribution from l-2 component
 !c
         if ((l-2) .ge. m) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,1)/2.)*cexp(xi*Omega(l1-2,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,1)/2.)*cexp(xi*Omega(l1-2,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,1)/2.)*exp(xi*Omega(l1-2,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,1)/2.)*exp(xi*Omega(l1-2,m1)/2.)
         end if
 !c
 !c  contribution from l-3 component
 !c
         if ((l-3) .ge. m) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,1)/2.)*cexp(xi*Omega(l1-3,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,1)/2.)*cexp(xi*Omega(l1-3,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,1)/2.)*exp(xi*Omega(l1-3,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,1)/2.)*exp(xi*Omega(l1-3,m1)/2.)
         end if
 !c
 !c  contribution from l-4 component
 !c
         if ((l-4) .ge. m) then
-          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,1)/2.)*cexp(xi*Omega(l1-4,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,1)/2.)*cexp(xi*Omega(l1-4,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,1)/2.)*exp(xi*Omega(l1-4,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,1)/2.)*exp(xi*Omega(l1-4,m1)/2.)
         end if
 !c
 !c  contribution from l-5 component
 !c
         if ((l-5) .ge. m) then
-          ds(l1,m1,2)=ds(l1,m1,2)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,1)/2.)*cexp(xi*Omega(l1-5,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,1)/2.)*cexp(xi*Omega(l1-5,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,1)/2.)*exp(xi*Omega(l1-5,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,1)/2.)*exp(xi*Omega(l1-5,m1)/2.)
         end if
 !c
 !c  contribution from l-6 component
 !c
         if ((l-6) .ge. m) then
-          ds(l1,m1,2)=ds(l1,m1,2)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,1)/2.)*cexp(xi*Omega(l1-6,m1)/2.)
-          dt(l1,m1,2)=dt(l1,m1,2)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,1)/2.)*cexp(xi*Omega(l1-6,m1)/2.)
+          ds(l1,m1,2)=ds(l1,m1,2)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,1)/2.)*exp(xi*Omega(l1-6,m1)/2.)
+          dt(l1,m1,2)=dt(l1,m1,2)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,1)/2.)*exp(xi*Omega(l1-6,m1)/2.)
         end if
       end do ! End l-loop Step2
     end do ! End m-loop Step2
@@ -663,90 +684,90 @@ program conflow
 !c  contribution from l+6 component
 !c
         if ((l+6) .lt. lmax-1) then
-          ds(l1,m1,3)=ds(l1,m1,3)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,2)/2.)*cexp(xi*Omega(l1+6,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,2)/2.)*cexp(xi*Omega(l1+6,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,2)/2.)*exp(xi*Omega(l1+6,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,2)/2.)*exp(xi*Omega(l1+6,m1)/2.)
         end if
 !c
 !c  contribution from l+5 component
 !c
         if ((l+5) .lt. lmax-1) then
-         ds(l1,m1,3)=ds(l1,m1,3)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,2)/2.)*cexp(xi*Omega(l1+5,m1)/2.)
-         dt(l1,m1,3)=dt(l1,m1,3)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,2)/2.)*cexp(xi*Omega(l1+5,m1)/2.)
+         ds(l1,m1,3)=ds(l1,m1,3)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,2)/2.)*exp(xi*Omega(l1+5,m1)/2.)
+         dt(l1,m1,3)=dt(l1,m1,3)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,2)/2.)*exp(xi*Omega(l1+5,m1)/2.)
         end if
 !c
 !c  contribution from l+4 component
 !c
         if ((l+4) .lt. lmax-1) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,2)/2.)*cexp(xi*Omega(l1+4,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,2)/2.)*cexp(xi*Omega(l1+4,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,2)/2.)*exp(xi*Omega(l1+4,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,2)/2.)*exp(xi*Omega(l1+4,m1)/2.)
         end if
 !c
 !c  contribution from l+3 component
 !c
         if ((l+3) .lt. lmax-1) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,2)/2.)*cexp(xi*Omega(l1+3,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,2)/2.)*cexp(xi*Omega(l1+3,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,2)/2.)*exp(xi*Omega(l1+3,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,2)/2.)*exp(xi*Omega(l1+3,m1)/2.)
         end if
 !c
 !c  contribution from l+2 component
 !c
         if ((l+2) .lt. lmax-1) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,2)/2.)*cexp(xi*Omega(l1+2,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,2)/2.)*cexp(xi*Omega(l1+2,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,2)/2.)*exp(xi*Omega(l1+2,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,2)/2.)*exp(xi*Omega(l1+2,m1)/2.)
         end if
 !c
 !c  contribution from l+1 component
 !c
         if ((l+1) .lt. lmax-1) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,2)/2.)*cexp(xi*Omega(l1+1,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,2)/2.)*cexp(xi*Omega(l1+1,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,2)/2.)*exp(xi*Omega(l1+1,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,2)/2.)*exp(xi*Omega(l1+1,m1)/2.)
         end if
 !c
 !c  contribution from l component
 !c
-        ds(l1,m1,3)=ds(l1,m1,3)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,2)/2.)*cexp(xi*Omega(l1,m1)/2.)
-        dt(l1,m1,3)=dt(l1,m1,3)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,2)/2.)*cexp(xi*Omega(l1,m1)/2.)
+        ds(l1,m1,3)=ds(l1,m1,3)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,2)/2.)*exp(xi*Omega(l1,m1)/2.)
+        dt(l1,m1,3)=dt(l1,m1,3)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,2)/2.)*exp(xi*Omega(l1,m1)/2.)
 !c
 !c  contribution from l-1 component
 !c
         if ((l-1) .ge. m) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,2)/2.)*cexp(xi*Omega(l1-1,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,2)/2.)*cexp(xi*Omega(l1-1,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,2)/2.)*exp(xi*Omega(l1-1,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,2)/2.)*exp(xi*Omega(l1-1,m1)/2.)
         end if
 !c
 !c  contribution from l-2 component
 !c
         if ((l-2) .ge. m) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,2)/2.)*cexp(xi*Omega(l1-2,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,2)/2.)*cexp(xi*Omega(l1-2,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,2)/2.)*exp(xi*Omega(l1-2,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,2)/2.)*exp(xi*Omega(l1-2,m1)/2.)
         end if
 !c
 !c  contribution from l-3 component
 !c
         if ((l-3) .ge. m) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,2)/2.)*cexp(xi*Omega(l1-3,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,2)/2.)*cexp(xi*Omega(l1-3,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,2)/2.)*exp(xi*Omega(l1-3,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,2)/2.)*exp(xi*Omega(l1-3,m1)/2.)
         end if
 !c
 !c  contribution from l-4 component
 !c
         if ((l-4) .ge. m) then
-          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,2)/2.)*cexp(xi*Omega(l1-4,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,2)/2.)*cexp(xi*Omega(l1-4,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,2)/2.)*exp(xi*Omega(l1-4,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,2)/2.)*exp(xi*Omega(l1-4,m1)/2.)
         end if
 !c
 !c  contribution from l-5 component
 !c
         if ((l-5) .ge. m) then
-          ds(l1,m1,3)=ds(l1,m1,3)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,2)/2.)*cexp(xi*Omega(l1-5,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,2)/2.)*cexp(xi*Omega(l1-5,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,2)/2.)*exp(xi*Omega(l1-5,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,2)/2.)*exp(xi*Omega(l1-5,m1)/2.)
         end if
 !c
 !c  contribution from l-6 component
 !c
         if ((l-6) .ge. m) then
-          ds(l1,m1,3)=ds(l1,m1,3)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,2)/2.)*cexp(xi*Omega(l1-6,m1)/2.)
-          dt(l1,m1,3)=dt(l1,m1,3)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,2)/2.)*cexp(xi*Omega(l1-6,m1)/2.)
+          ds(l1,m1,3)=ds(l1,m1,3)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,2)/2.)*exp(xi*Omega(l1-6,m1)/2.)
+          dt(l1,m1,3)=dt(l1,m1,3)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,2)/2.)*exp(xi*Omega(l1-6,m1)/2.)
         end if
       end do ! End l-loop Step3
     end do ! End m-loop Step3
@@ -766,99 +787,96 @@ program conflow
 !c  contribution from l+6 component
 !c
         if ((l+6) .lt. lmax-1) then
-          ds(l1,m1,4)=ds(l1,m1,4)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,3))*cexp(xi*Omega(l1+6,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,3))*cexp(xi*Omega(l1+6,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,3))*exp(xi*Omega(l1+6,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,3))*exp(xi*Omega(l1+6,m1))
         end if
 !c
 !c  contribution from l+5 component
 !c
         if ((l+5) .lt. lmax-1) then
-          ds(l1,m1,4)=ds(l1,m1,4)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,3))*cexp(xi*Omega(l1+5,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,3))*cexp(xi*Omega(l1+5,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,3))*exp(xi*Omega(l1+5,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,3))*exp(xi*Omega(l1+5,m1))
         end if
 !c
 !c  contribution from l+4 component
 !c
         if ((l+4) .lt. lmax-1) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,3))*cexp(xi*Omega(l1+4,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,3))*cexp(xi*Omega(l1+4,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,3))*exp(xi*Omega(l1+4,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,3))*exp(xi*Omega(l1+4,m1))
         end if
 !c
 !c  contribution from l+3 component
 !c
         if ((l+3) .lt. lmax-1) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,3))*cexp(xi*Omega(l1+3,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,3))*cexp(xi*Omega(l1+3,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,3))*exp(xi*Omega(l1+3,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,3))*exp(xi*Omega(l1+3,m1))
         end if
 !c
 !c  contribution from l+2 component
 !c
         if ((l+2) .lt. lmax-1) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,3))*cexp(xi*Omega(l1+2,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,3))*cexp(xi*Omega(l1+2,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,3))*exp(xi*Omega(l1+2,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,3))*exp(xi*Omega(l1+2,m1))
         end if
 !c
 !c  contribution from l+1 component
 !c
         if ((l+1) .lt. lmax-1) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,3))*cexp(xi*Omega(l1+1,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,3))*cexp(xi*Omega(l1+1,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,3))*exp(xi*Omega(l1+1,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,3))*exp(xi*Omega(l1+1,m1))
         end if
 !c
 !c  contribution from l component
 !c
-        ds(l1,m1,4)=ds(l1,m1,4)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,3))*cexp(xi*Omega(l1,m1))
-        dt(l1,m1,4)=dt(l1,m1,4)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,3))*cexp(xi*Omega(l1,m1))
+        ds(l1,m1,4)=ds(l1,m1,4)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,3))*exp(xi*Omega(l1,m1))
+        dt(l1,m1,4)=dt(l1,m1,4)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,3))*exp(xi*Omega(l1,m1))
 !c
 !c  contribution from l-1 component
 !c
         if ((l-1) .ge. m) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,3))*cexp(xi*Omega(l1-1,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,3))*cexp(xi*Omega(l1-1,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,3))*exp(xi*Omega(l1-1,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,3))*exp(xi*Omega(l1-1,m1))
         end if
 !c
 !c  contribution from l-2 component
 !c
         if ((l-2) .ge. m) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,3))*cexp(xi*Omega(l1-2,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,3))*cexp(xi*Omega(l1-2,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,3))*exp(xi*Omega(l1-2,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,3))*exp(xi*Omega(l1-2,m1))
         end if
 !c
 !c  contribution from l-3 component
 !c
         if ((l-3) .ge. m) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,3))*cexp(xi*Omega(l1-3,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,3))*cexp(xi*Omega(l1-3,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,3))*exp(xi*Omega(l1-3,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,3))*exp(xi*Omega(l1-3,m1))
         end if
 !c
 !c  contribution from l-4 component
 !c
         if ((l-4) .ge. m) then
-          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,3))*cexp(xi*Omega(l1-4,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,3))*cexp(xi*Omega(l1-4,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,3))*exp(xi*Omega(l1-4,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,3))*exp(xi*Omega(l1-4,m1))
         end if
 !c
 !c  contribution from l-5 component
 !c
         if ((l-5) .ge. m) then
-          ds(l1,m1,4)=ds(l1,m1,4)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,3))*cexp(xi*Omega(l1-5,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,3))*cexp(xi*Omega(l1-5,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,3))*exp(xi*Omega(l1-5,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,3))*exp(xi*Omega(l1-5,m1))
         end if
 !c
 !c  contribution from l-6 component
 !c
         if ((l-6) .ge. m) then
-          ds(l1,m1,4)=ds(l1,m1,4)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,3))*cexp(xi*Omega(l1-6,m1))
-          dt(l1,m1,4)=dt(l1,m1,4)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,3))*cexp(xi*Omega(l1-6,m1))
+          ds(l1,m1,4)=ds(l1,m1,4)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,3))*exp(xi*Omega(l1-6,m1))
+          dt(l1,m1,4)=dt(l1,m1,4)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,3))*exp(xi*Omega(l1-6,m1))
         end if
       end do ! End l-loop Step4
     end do ! End m-loop Step4
-
-500 continue
-
-!c
-!c  Add changes and evolve
-!c
+!
+! ****** Add changes and evolve
+!
     do m=1,lmax-1
       m1=m+1
       do l=m,lmax-1
@@ -866,12 +884,13 @@ program conflow
         el=float(l)
         xlifetime=10.*3600.*(100./(el+0.1))**2.0
         !        xlifetime=xlifetime/2.
-
-        phase=Omega(l1,m1)+2.*(rand()-0.5)*sqrt(deltaT/xlifetime)
+        call RANDOM_NUMBER (rnd)
+        phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(deltaT/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         s(l1,m1)=(s(l1,m1) + ds(l1,m1,1)/6. + ds(l1,m1,2)/3. + ds(l1,m1,3)/3. + ds(l1,m1,4)/6.)*arg
-
-        phase=Omega(l1,m1)+2.*(rand()-0.5)*sqrt(deltaT/xlifetime)
+ 
+        call RANDOM_NUMBER (rnd)
+        phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(deltaT/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         t(l1,m1)=(t(l1,m1) + dt(l1,m1,1)/6. + dt(l1,m1,2)/3. + dt(l1,m1,3)/3. + dt(l1,m1,4)/6.)*arg
       end do
@@ -959,10 +978,10 @@ program conflow
       call four1(vnorth,nphi,-1)
       call four1(vsouth,nphi,-1)
       do i=1,nphi
-        u(i,jn)=real(unorth(i))
-        u(i,js)=real(usouth(i))
-        v(i,jn)=real(vnorth(i))
-        v(i,js)=real(vsouth(i))
+        u(i,jn)=real(unorth(i),r_typ)
+        u(i,js)=real(usouth(i),r_typ)
+        v(i,jn)=real(vnorth(i),r_typ)
+        v(i,js)=real(vsouth(i),r_typ)
       end do ! End phi-loop
     end do ! End latitude-loop
     write(*,*) 'Vector velocity arrays for step ',itime,' of ', &
@@ -975,28 +994,38 @@ program conflow
 !                                                                      *
 !***********************************************************************
 
-!  [RMC] INSERT PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
+!  [RMC] INSERTED PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
+!   NOTE!  For now, I have disabled old binary output.
+!          This should be put back in as an option!!!
 
+!    wt1 = wtime()
     write(velFileNum, '(i4)') ifile
     fname='Vlon_' // velFileNum
-    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
-         status='unknown',recl=4*nphi)
-      do j=1,nl
-        write(1,rec=j) (u(i,j),i=1,nphi)
-      end do
-    close(1)
+!    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
+!         status='unknown',recl=8*nphi)
+!      do j=1,nl
+!        write(1,rec=j) (u(i,j),i=1,nphi)
+!      end do
+!    close(1)
+!    wtime_io = wtime_io + (wtime() - wt1)
 !
     call write_2d_file (fname//'.h5',nphi,nl,u,pvec,tvec,ierr)
 !
+!    wt1 = wtime()
     fname='Vlat_' // velFileNum
-    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
-         status='unknown',recl=4*nphi)
-      do j=1,nl
-        write(1,rec=j) (v(i,j),i=1,nphi)
-      enddo
-    close(1)
+!    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
+!         status='unknown',recl=8*nphi)
+!      do j=1,nl
+!        write(1,rec=j) (v(i,j),i=1,nphi)
+!      enddo
+!    close(1)
+!    wtime_io = wtime_io + (wtime() - wt1)
 !
     call write_2d_file (fname//'.h5',nphi,nl,v,pvec,tvec,ierr)
+!
+! ****** Get wall-clock time.
+!
+    wtime_total = wtime() - wtime_tmp
 !
   enddo ! End time-loop
 end program conflow
@@ -1011,7 +1040,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
 !
       use number_types
       use ds_def
-!      use timing
+      use timing
 !
 !-----------------------------------------------------------------------
 !
@@ -1020,7 +1049,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
 !-----------------------------------------------------------------------
 !
       character(*) :: fname
-      real, dimension(ln1,ln2) :: f
+      real(r_typ), dimension(ln1,ln2) :: f
       real(r_typ), dimension(ln1) :: s1
       real(r_typ), dimension(ln2) :: s2
       integer :: ln1,ln2
@@ -1033,7 +1062,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
 !
 !-----------------------------------------------------------------------
 !
-!      t1 = wtime()
+      t1 = wtime()
 !
 ! ****** Set the structure components.
 !
@@ -1070,9 +1099,79 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
       deallocate (s%scales(2)%f)
       deallocate (s%f)
 !
-!      wtime_io = wtime_io + (wtime() - t1)
+      wtime_io = wtime_io + (wtime() - t1)
 !
 end subroutine
+!#######################################################################
+subroutine write_timing
+!
+!-----------------------------------------------------------------------
+!
+! ****** Write out timing.
+!
+!-----------------------------------------------------------------------
+!
+      use timing
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      character(*), parameter :: FMT = '(a20,f20.2)'
+!
+!-----------------------------------------------------------------------
+!
+      write(*,"(a40)") repeat("-", 40)
+      write(*,FMT) "Wall clock time:   ",wtime_total
+      write(*,"(a40)") repeat("-", 40)
+      write(*,FMT) "--> I/O:           ",wtime_io
+      write(*,"(a40)") repeat("-", 40)
+!
+      write(*,*)
+      flush(OUTPUT_UNIT)
+!
+end subroutine
+!#######################################################################
+function wtime ()
+!
+!*********************************************************************72
+!
+!  WTIME returns a reading of the wall clock time.
+!
+!  Discussion:
+!    To get the elapsed wall clock time, call WTIME before and after
+!    a given operation, and subtract the first reading from the second.
+!  Licensing:
+!    This code is distributed under the GNU LGPL license.
+!  Author:
+!    John Burkardt
+!  Parameters:
+!    Output, r_typ WTIME, the wall clock reading, in seconds.
+!
+      use number_types
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      integer*8 :: clock_max
+      integer*8 :: clock_rate
+      integer*8 :: clock_reading
+!
+      real(r_typ) :: wtime
+!
+!-----------------------------------------------------------------------
+!
+      call SYSTEM_CLOCK (clock_reading,clock_rate,clock_max)
+!
+      wtime = real(clock_reading,r_typ)/real(clock_rate,r_typ)
+!
+      return
+end function
 !#######################################################################
 !
 !-----------------------------------------------------------------------
@@ -1084,6 +1183,13 @@ end subroutine
 !
 ! 06/07/2022, RC, Version 0.2.0:
 !   - Added initial hdf5 output.
+!
+! 06/20/2022, RC, Version 0.3.0:
+!   - Added timers, fixed implicit variables.
+!   - Converted code to double precision.
+!   - Temporarily disabled old binary output until it is made
+!     as an option.
+!
 !-----------------------------------------------------------------------
 !
 !#######################################################################

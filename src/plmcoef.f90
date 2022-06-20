@@ -5,8 +5,29 @@ subroutine plmcoef(lmaxp,coef)
 !  of degree l and order m in subroutine plm.
 !
 !***********************************************************************
-  real*4 coef(lmaxp,lmaxp)
-
+!
+  use iso_fortran_env
+!  
+!-----------------------------------------------------------------------
+!
+  implicit none
+!
+!-----------------------------------------------------------------------
+!
+  integer, parameter :: r_typ = REAL64
+!
+!-----------------------------------------------------------------------
+!
+  real(r_typ) :: coef(lmaxp,lmaxp)
+  integer :: lmaxp
+!
+!-----------------------------------------------------------------------
+!
+  integer :: m,lmax,l
+  real(r_typ) :: x1
+!
+!-----------------------------------------------------------------------
+!
   lmax=lmaxp-1
   m=0
   x1=0.5
@@ -26,5 +47,5 @@ subroutine plmcoef(lmaxp,coef)
   m=lmax
   x1=x1*(2.*m+1.)/(2.*m)
   coef(m+1,m+1)=sqrt(x1)
-  return
+!  
 end subroutine plmcoef

@@ -1,0 +1,29 @@
+Developer tasks for ConFlow
+
+ - Use zm_parse.f to add command line option parsing
+ - Add input flags for total time, cadense, etc.
+ - Add input flags for using fixed seed or random seed.
+ - Add output of text file with list of output files and their times and seq numbers
+   (similar to hipft).
+ - Add scripts to automatically plot velocities, clean up a run, etc.
+ - Add options for resolution:
+   - output resolution ntxnp
+   - type of grid (current AFT-style or PSI-style)
+
+ - Go through code and make it conform to decided on style guide
+ - Go through code an document with references what each part is doing.
+
+ - Re-factor code into a "driver code" and a linked "core code".
+   The driver code should call the core code routiens to setup, and run teh algorithm,
+   and then have the IO.
+   This way, we can have HipFT "drive" the code by linking to the "core code".
+
+ - See if parts of the code (like plm) can be replaced with more
+   modern versions (similar to the tesserial spherical harmonic code)
+   for robustness and speed.
+ - See if fourier transform is (or can be replaced with) FFT?
+ - Profile code run and check for hot spots.
+
+ - Once code is re-factored and understood, see if it is straight forward
+   to utilize standartd parallelsim+OpenACC/MP to parallelize the code.
+
