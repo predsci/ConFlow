@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.3.0'
-      character(*), parameter :: cdate='06/20/2022'
+      character(*), parameter :: cvers='0.4.0'
+      character(*), parameter :: cdate='07/13/2022'
 !
 end module
 !#######################################################################
@@ -83,6 +83,7 @@ program conflow
 !
   use number_types
   use timing
+  use ident
 !
 !-----------------------------------------------------------------------
 !
@@ -90,17 +91,20 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
-  integer :: nl,nphi
-
-  parameter (nl=512,nphi=1024)
-
-  character :: fname*9,ext*5,path*100,velFileNum*4
-
+  integer,parameter :: nl=512
+  integer,parameter :: nphi=1024
+!
+  character(8) :: fname
+  character(5) :: ext
+  character(100) :: path
+  character(6) :: velFileNum
+!
   integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
-
+!
   real(r_typ) :: pi,root3,root5,root7,root9
   real(r_typ) :: rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
+  real(r_typ) :: tmax,curr_time
   real(r_typ) :: s0,s1,s2,s3,s4,s5,t0,t1,t2,t3,t4,el,em,amp2,amp3,randamp,phase,taper,xlifetime
   real(r_typ) :: elfunc,elfuncMF,DR0,DR1,DR2,DR3,DR4,MF0,MF1,MF2,MF3,MF4,MF5
   real(r_typ) :: BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3,BAALP4,BAALP5
@@ -117,7 +121,7 @@ program conflow
   real(r_typ) :: coefDR(5),coefMF(6)
 !
   real(r_typ), dimension(:), allocatable :: tvec,pvec
-  real(r_typ) :: wt1,wtime
+  real(r_typ) :: wtime,wt1
   real(r_typ) :: rnd
 !
   complex(r_typ) :: s(nl,nl),ds(nl,nl,4)
@@ -137,16 +141,21 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
+  write(*,*)
+  write(*,*) cname,' v',cvers,' ',cdate
+  write(*,*)
+!
   path= './'
-  fname='fake_1000'
-  ext='.data'  
+  fname=' '
+  ext='.data'
   lenPath=len(trim(path))
+!
   lmax=nl-1
   nlhalf=nl/2
 !
 ! ****** Initialize random number generator.
 ! ****** Set a specific seed for reproducibility.
-! ****** Later this shoudl be made into an option!!!! [RMC]
+! ****** Later this should be made into an option!!!! [RMC]
 !
   call RANDOM_INIT (.true., .true.)
   call RANDOM_SEED (size=seed_n)
@@ -155,7 +164,7 @@ program conflow
   call RANDOM_SEED(get=seed_old)
   seed_new(:)=12345
   call RANDOM_SEED(put=seed_new)
-!  
+!
 !c***********************************************************************
 !c                                                                      *
 !c  Numeric constants
@@ -172,18 +181,21 @@ program conflow
 !c  Physical constants
 !c                                                                      *
 !c***********************************************************************
-  rSun=6.96e+08
-  daySec=86400.0_r_typ
+  rSun = 6.96e+08
+  daySec = 86400.0_r_typ
 !c***********************************************************************
 !c                                                                      *
 !c  Time (seconds) and space (radians) steps
 !c                                                                      *
 !c***********************************************************************
-  deltaT=15.0_r_typ*60.0_r_typ
-  dphi=2.0_r_typ*pi/nphi
-  dtheta=pi/nl
+  deltaT = 15.0_r_typ*60.0_r_typ
+  tmax = 28*24*3600
+  curr_time = 0.
+  nfiles = int(tmax/deltaT)
+  dphi = 2.0_r_typ*pi/nphi
+  dtheta = pi/nl
 !
-! ****** Set up theta and phi 1D scale arrays.
+! ****** Set up theta (co-lat) and phi 1D scale arrays.
 !
   allocate(tvec(nl))
   allocate(pvec(nphi))
@@ -205,6 +217,8 @@ program conflow
 3 format(6(4x,f8.3))
   open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_v6.txt',status='old')
     read(2,2) t0,t1,t2,t3,t4
+    write(*,*)
+    write(*,*) 'Differential rotation coeffs (m/s) t0,t1,t2,t3,t4:'
     write(*,*) t0,t1,t2,t3,t4
     coefDR(1)=t0*deltaT/rSun
     coefDR(2)=t1*deltaT/rSun
@@ -217,6 +231,8 @@ program conflow
 !c
 !c***********************************************************************
     read(2,3) s0,s1,s2,s3,s4,s5
+    write(*,*)
+    write(*,*) 'Differential rotation coeffs (m/s) s0,s1,s2,s3,s4,s5:'
     write(*,*) s0,s1,s2,s3,s4,s5
     coefMF(1)=s0*deltaT/rSun
     coefMF(2)=s1*deltaT/rSun
@@ -231,16 +247,17 @@ program conflow
 !c
 !c***********************************************************************
   call plmcoef(nl,coef)
+!
+  write(*,*)
   write(*,*) 'Legendre recurrance coefficients calculated.'
 !c***********************************************************************
 !c                                                                      *
 !c  Construct the convection spectrum.                                  *
 !c                                                                      *
 !c***********************************************************************
-  write(*,*) 'Calculating spectrum'
   do l=1,lmax
     l1=l+1
-    el=float(l)
+    el=real(l,r_typ)
     amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
     amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
     taper=1.0
@@ -263,6 +280,7 @@ program conflow
       t(l1,m1)=randamp*amp3*arg
     end do
   end do
+  write(*,*)
   write(*,*) 'Velocity spectrum calculated'
 !c***********************************************************************
 !c
@@ -271,10 +289,10 @@ program conflow
 !c***********************************************************************
   do m=1,lmax
     m1=m+1
-    em=float(m)
+    em=real(m,r_typ)
     do l=m,lmax
       l1=l+1
-      el=float(l)
+      el=real(l,r_typ)
 !c
 !c Modify differential rotation and meridional flow with l (depth)
 !c
@@ -454,12 +472,24 @@ program conflow
 !c  Construct series of velocity maps at deltaT (in seconds) intervals
 !c
 !c***********************************************************************
-  !RMC: This needs to be an input param!
-  nfiles=28*24*(3600/int(deltaT))
 !
-  write(*,*) 'A tile step of ', deltaT, 'in (s) will produce ', nfiles,' Vector velocity arrays.'
+  write(*,*)
+  write(*,*) 'A time step of ', deltaT, 'seconds will produce ', &
+             nfiles,' vt and vp flow files.'
+  write(*,*)
+  flush(OUTPUT_UNIT)
+!
+! ****** Open text file to list output maps.
+!
+  call ffopen (12,'flow_output_list.csv','rw',ierr)
+  write (12,'(A11,A1,A11,A1,A11)') &
+        'TIME(JD)',',','VTFILENAME',',','VPFILENAME'
+  close(12)
+!
+!****** START MAIN LOOP. ******
+!
   do itime=1,nfiles
-    ifile=1000+(itime-1)
+    ifile=itime
 !
 !c***********************************************************************
 !c
@@ -881,21 +911,21 @@ program conflow
       m1=m+1
       do l=m,lmax-1
         l1=l+1
-        el=float(l)
+        el=real(l,r_typ)
         xlifetime=10.*3600.*(100./(el+0.1))**2.0
         !        xlifetime=xlifetime/2.
         call RANDOM_NUMBER (rnd)
         phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(deltaT/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         s(l1,m1)=(s(l1,m1) + ds(l1,m1,1)/6. + ds(l1,m1,2)/3. + ds(l1,m1,3)/3. + ds(l1,m1,4)/6.)*arg
- 
+
         call RANDOM_NUMBER (rnd)
         phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(deltaT/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         t(l1,m1)=(t(l1,m1) + dt(l1,m1,1)/6. + dt(l1,m1,2)/3. + dt(l1,m1,3)/3. + dt(l1,m1,4)/6.)*arg
       end do
     end do
-    write(*,*) 'Spectral Coefficients updated'
+    !write(*,*) 'Spectral Coefficients updated'
 !c***********************************************************************
 !c                                                                      *
 !c  Calculate the vector velocity components at each latitude.
@@ -977,17 +1007,17 @@ program conflow
       call four1(usouth,nphi,-1)
       call four1(vnorth,nphi,-1)
       call four1(vsouth,nphi,-1)
+!
       do i=1,nphi
+!
+! ****** Get real part of complex values from FFT.
+!
         u(i,jn)=real(unorth(i),r_typ)
         u(i,js)=real(usouth(i),r_typ)
         v(i,jn)=real(vnorth(i),r_typ)
         v(i,js)=real(vsouth(i),r_typ)
       end do ! End phi-loop
     end do ! End latitude-loop
-    write(*,*) 'Vector velocity arrays for step ',itime,' of ', &
-               nfiles,' calculated.'
-    write(*,*) 'Vlat Max and min',maxval(v),minval(v)
-    write(*,*) 'Vlon Max and min',maxval(u),minval(u)
 !***********************************************************************
 !                                                                      *
 !  Write longitudinal and co-latitudinal velocity to disk file.        *
@@ -996,38 +1026,54 @@ program conflow
 
 !  [RMC] INSERTED PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
 !   NOTE!  For now, I have disabled old binary output.
-!          This should be put back in as an option!!!
+!          It should be put back in as an option?
 
-!    wt1 = wtime()
-    write(velFileNum, '(i4)') ifile
-    fname='Vlon_' // velFileNum
+    wt1 = wtime()
+    write(velFileNum, '(i0.6)') ifile
 !    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
 !         status='unknown',recl=8*nphi)
 !      do j=1,nl
 !        write(1,rec=j) (u(i,j),i=1,nphi)
 !      end do
 !    close(1)
-!    wtime_io = wtime_io + (wtime() - wt1)
+    wtime_io = wtime_io + (wtime() - wt1)
 !
-    call write_2d_file (fname//'.h5',nphi,nl,u,pvec,tvec,ierr)
+    call write_2d_file ('vp'//velFileNum//'.h5',nphi,nl,u,pvec,tvec,ierr)
 !
-!    wt1 = wtime()
-    fname='Vlat_' // velFileNum
+    wt1 = wtime()
 !    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
 !         status='unknown',recl=8*nphi)
 !      do j=1,nl
 !        write(1,rec=j) (v(i,j),i=1,nphi)
 !      enddo
 !    close(1)
-!    wtime_io = wtime_io + (wtime() - wt1)
+    wtime_io = wtime_io + (wtime() - wt1)
 !
-    call write_2d_file (fname//'.h5',nphi,nl,v,pvec,tvec,ierr)
+    call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl,v,pvec,tvec,ierr)
+!
+    call ffopen (12,'flow_output_list.csv','a',ierr)
+    write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
+                              trim('vt'//velFileNum//'.h5'),',', &
+                              trim('vp'//velFileNum//'.h5')
+    close(12)
+!
+    write(*,*) 'Completed step ',ifile,' of ', nfiles
+    write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
+    write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
+    flush(OUTPUT_UNIT)
+!
+! ***** Update time.
+!
+    curr_time = curr_time + deltaT
+!
+  enddo ! End time-loop
 !
 ! ****** Get wall-clock time.
 !
-    wtime_total = wtime() - wtime_tmp
+  wtime_total = wtime() - wtime_tmp
+
+  call write_timing
 !
-  enddo ! End time-loop
 end program conflow
 !#######################################################################
 subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
@@ -1123,6 +1169,7 @@ subroutine write_timing
 !
 !-----------------------------------------------------------------------
 !
+      write(*,*)
       write(*,"(a40)") repeat("-", 40)
       write(*,FMT) "Wall clock time:   ",wtime_total
       write(*,"(a40)") repeat("-", 40)
@@ -1189,6 +1236,11 @@ end function
 !   - Converted code to double precision.
 !   - Temporarily disabled old binary output until it is made
 !     as an option.
+!
+! 07/14/2022, RC, Version 0.4.0:
+!   - Cleaned up some code
+!   - Changes output file names to v[tp]######.h5
+!   - Created output csv file listing output flow files and times.
 !
 !-----------------------------------------------------------------------
 !
