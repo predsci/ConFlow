@@ -77,12 +77,85 @@ module timing
 !
 end module
 !#######################################################################
+module constants
+!
+!-----------------------------------------------------------------------
+! ****** Constants in r_typ precision for use throughout the code.
+! ****** Used for simplicity and readability.
+!-----------------------------------------------------------------------
+!
+      use number_types
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      real(r_typ), parameter :: zero = 0.0_r_typ
+      real(r_typ), parameter :: one = 1.0_r_typ
+      integer*8,   parameter :: one_int = 1
+      real(r_typ), parameter :: two = 2.0_r_typ
+      integer*8,   parameter :: two_int = 2
+      real(r_typ), parameter :: three = 3._r_typ
+      integer*8,   parameter :: three_int = 3
+      real(r_typ), parameter :: four = 4._r_typ
+      integer*8,   parameter :: four_int = 4
+      real(r_typ), parameter :: five = 5._r_typ
+      real(r_typ), parameter :: six = 6._r_typ
+      real(r_typ), parameter :: seven = 7._r_typ
+      real(r_typ), parameter :: nine = 9._r_typ
+      real(r_typ), parameter :: ten = 10._r_typ
+      real(r_typ), parameter :: fifteen = 15._r_typ
+      real(r_typ), parameter :: sixteen = 16._r_typ
+      real(r_typ), parameter :: half = 0.5_r_typ
+      real(r_typ), parameter :: quarter = 0.25_r_typ
+      real(r_typ), parameter :: twentyfour = 24.0_r_typ
+      real(r_typ), parameter :: twentyfive = 25.0_r_typ
+      real(r_typ), parameter :: fivehundred_i = 0.002_r_typ
+      real(r_typ), parameter :: three_quarter = 0.75_r_typ
+      real(r_typ), parameter :: two_third = 0.66666666666666666_r_typ
+      real(r_typ), parameter :: third = 0.33333333333333333_r_typ
+!
+      real(r_typ), parameter :: pi = 3.1415926535897932_r_typ
+      real(r_typ), parameter :: pi_two = 1.5707963267948966_r_typ
+      real(r_typ), parameter :: pi_i = 0.3183098861837907_r_typ
+      real(r_typ), parameter :: twopi = 6.2831853071795864_r_typ
+      real(r_typ), parameter :: twopi_i = 0.15915494309189535_r_typ
+      real(r_typ), parameter :: threepi_two = 4.71238898038469_r_typ
+      real(r_typ), parameter :: threepi_four = 2.356194490192345_r_typ
+!
+      real(r_typ), parameter :: d2r = 0.017453292519943295_r_typ
+      real(r_typ), parameter :: r2d = 57.29577951308232_r_typ
+!
+      real(r_typ), parameter :: rsun_cm = 6.96e10_r_typ
+      real(r_typ), parameter :: rsun_cm2 = 4.84416e21_r_typ
+!
+      real(r_typ), parameter :: &
+                         diff_km2_s_to_rs2_s = 2.0643413925221e-12_r_typ
+      real(r_typ), parameter :: &
+                         diff_km2_s_to_rs2_hr = 7.43162901307967e-09_r_typ
+      real(r_typ), parameter :: &
+                         km_s_to_rs_hr = 0.005172413793103448_r_typ
+      real(r_typ), parameter :: &
+                         m_s_to_rs_hr = 5.172413793103448e-06_r_typ
+      real(r_typ), parameter :: &
+                         km_s_to_rs_s = 1.4367816091954023e-06_r_typ
+      real(r_typ), parameter :: output_flux_fac = 1.0e-21_r_typ
+!
+      real(r_typ), parameter :: small_value = tiny(one)
+      real(r_typ), parameter :: large_value = huge(one)
+      real(r_typ), parameter :: safety = 0.95_r_typ
+!
+end module
+!#######################################################################
 program conflow
 !
 !-----------------------------------------------------------------------
 !
   use number_types
   use timing
+  use constants
   use ident
 !
 !-----------------------------------------------------------------------
@@ -102,7 +175,7 @@ program conflow
   integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
 !
-  real(r_typ) :: pi,root3,root5,root7,root9
+  real(r_typ) :: root3,root5,root7,root9
   real(r_typ) :: rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
   real(r_typ) :: tmax,curr_time
   real(r_typ) :: s0,s1,s2,s3,s4,s5,t0,t1,t2,t3,t4,el,em,amp2,amp3,randamp,phase,taper,xlifetime
@@ -120,7 +193,11 @@ program conflow
   real(r_typ) :: MFlowP5(nl,nl),MFlowM5(nl,nl),MFlowP6(nl,nl),MFlowM6(nl,nl)
   real(r_typ) :: coefDR(5),coefMF(6)
 !
-  real(r_typ), dimension(:), allocatable :: tvec,pvec
+  real(r_typ), dimension(:), allocatable :: p_main,p_half,t_main,t_half
+  real(r_typ), dimension(:), allocatable :: p_ext,t_ext
+  real(r_typ), dimension(:,:), allocatable :: vt_psi,vp_psi,v_ext
+  real(r_typ) ::  dphi_psi,dtheta_psi,pole
+
   real(r_typ) :: wtime,wt1
   real(r_typ) :: rnd
 !
@@ -170,43 +247,88 @@ program conflow
 !c  Numeric constants
 !c                                                                      *
 !c***********************************************************************
-  pi=4.0_r_typ*atan(1.0_r_typ)
-  root3=sqrt(3.0_r_typ)
-  root5=sqrt(5.0_r_typ)
-  root7=sqrt(7.0_r_typ)
-  root9=sqrt(9.0_r_typ)
-  xi=(0.,1.0_r_typ)
+  root3=sqrt(three)
+  root5=sqrt(five)
+  root7=sqrt(seven)
+  root9=sqrt(nine)
+  xi=(0.,one)
 !c***********************************************************************
 !c                                                                      *
 !c  Physical constants
 !c                                                                      *
 !c***********************************************************************
-  rSun = 6.96e+08
+  rSun = 6.96e+08_r_typ   ! (meters)
   daySec = 86400.0_r_typ
 !c***********************************************************************
 !c                                                                      *
 !c  Time (seconds) and space (radians) steps
 !c                                                                      *
 !c***********************************************************************
-  deltaT = 15.0_r_typ*60.0_r_typ
+  deltaT = fifteen*60.0_r_typ
   tmax = 28*24*3600
   curr_time = 0.
   nfiles = int(tmax/deltaT)
-  dphi = 2.0_r_typ*pi/nphi
+  dphi = twopi/nphi
   dtheta = pi/nl
 !
-! ****** Set up theta (co-lat) and phi 1D scale arrays.
+! ****** Set up output scales and arrays.
 !
-  allocate(tvec(nl))
-  allocate(pvec(nphi))
-
-  do i=1,nl
-    tvec(i)=dtheta*0.5_r_typ+(i-1)*dtheta
+! Currently, the VT and VP are on the same inner-half-half mesh
+! with 1024x512 points.
+!
+! For HipFT input, we need VT to be 1024x513 on a PSI main-half mesh
+! and                      VP to be 1025x512 on a PSI half-main mesh
+!
+! Until this can be done directly/correctly in this code,
+! we add here interpolation to those grids before outputting the flows.
+! This definetly should be replaced with modifying the above code to
+! set these meshes directly to avoid interpolation.
+!
+! ****** Set up extended grid for current flows so that half-mesh
+!        dimensions can be interpolated properly.
+  allocate (v_ext(nphi+2,nl+2))
+  allocate (p_ext(nphi+2))
+  allocate (t_ext(nl+2))
+!
+! ****** Set extended ConFlow meshes.
+!
+  do i=1,nphi+2
+    p_ext(i) = -half*dphi + (i-1)*dphi
   enddo
+  do i=1,nl+2
+    t_ext(i) = -half*dtheta + (i-1)*dtheta
+  enddo
+  print*,p_ext(1),t_ext(1),p_ext(nphi+2),t_ext(nl+2)
+!
+! ***** Allocate psi output arrays.
+!
+  allocate (vt_psi(nphi,nl+1))
+  allocate (vp_psi(nphi+1,nl))
+!
+! ****** Set PSI meshes.
+!
+  allocate (p_main(nphi))
+  allocate (p_half(nphi+1))
+  allocate (t_main(nl))
+  allocate (t_half(nl+1))
+!
+  dphi_psi = twopi/(nphi-1)
+  dtheta_psi = pi/(nl-1)
 !
   do i=1,nphi
-    pvec(i)=dphi*0.5_r_typ+(i-1)*dphi
+    p_main(i) = (i-1)*dphi_psi
   enddo
+  do i=1,nphi+1
+    p_half(i) = -half*dphi_psi+(i-1)*dphi_psi
+  enddo
+  do i=1,512
+    t_main(i) = (i-1)*dtheta_psi
+  enddo
+  do i=1,513
+    t_half(i) = -half*dtheta_psi + (i-1)*dtheta_psi
+  enddo
+  print*,p_main(1),t_main(1),p_main(nphi),t_main(nl)
+  print*,p_half(1),t_half(1),p_half(nphi+1),t_half(nl+1)
 !
 !***********************************************************************
 !c                                                                      *
@@ -1023,33 +1145,73 @@ program conflow
 !  Write longitudinal and co-latitudinal velocity to disk file.        *
 !                                                                      *
 !***********************************************************************
-
-!  [RMC] INSERTED PSI HDF5 OUTPUT HERE (SET 1D SCALES ABOVE TIME LOOP)
-!   NOTE!  For now, I have disabled old binary output.
-!          It should be put back in as an option?
-
+!
+! ****** Interpolate ConFlow flows into PSI grid flow arrays.
+!
     wt1 = wtime()
+!
+! ****** VT (NT,NPM) ******
+!
+! ****** Set up v_ext for vt:
+!
+    v_ext(2:nphi+1,2:nl+1) = u(:,:)
+!
+! ****** Set "past the pole" values:
+!
+    pole = SUM(v_ext(2:nphi+1,2))/nphi
+    v_ext(:,1) = two*pole - v_ext(:,2)
+    pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
+    v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+!
+! ****** Set periodicity:
+!
+    v_ext(1,:) = v_ext(nphi+1,:)
+    v_ext(nphi+2,:) = v_ext(2,:)
+!
+! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
+!
+    call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+                   nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
+!
+! ****** Now set poles for PSI vt:
+!
+    pole = SUM(vt_psi(1:nphi-1,2))/(nphi-1)
+    vt_psi(:,1) = two*pole - vt_psi(:,2)
+    pole = SUM(vt_psi(1:nphi-1,nl))/(nphi-1)
+    vt_psi(:,nl+1) = two*pole - vt_psi(:,nl)
+!
+! ****** VP (NTM,NP) ******
+!
+! ****** Set up v_ext for vp:
+!
+    v_ext(2:nphi+1,2:nl+1) = v(:,:)
+!
+! ****** Set "past the pole" values:
+!
+    pole = SUM(v_ext(2:nphi+1,2))/nphi
+    v_ext(:,1) = two*pole - v_ext(:,2)
+    pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
+    v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+!
+! ****** Set periodicity:
+!
+    v_ext(1,:) = v_ext(nphi+1,:)
+    v_ext(nphi+2,:) = v_ext(2,:)
+!
+! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
+!
+    call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+                   nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
+!
+! ****** Now set periodicity for vp:
+!
+    vp_psi(1,:) = vp_psi(nphi,:)
+    vp_psi(nphi+1,:) = vp_psi(2,:)
+!
     write(velFileNum, '(i0.6)') ifile
-!    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
-!         status='unknown',recl=8*nphi)
-!      do j=1,nl
-!        write(1,rec=j) (u(i,j),i=1,nphi)
-!      end do
-!    close(1)
-    wtime_io = wtime_io + (wtime() - wt1)
 !
-    call write_2d_file ('vp'//velFileNum//'.h5',nphi,nl,u,pvec,tvec,ierr)
-!
-    wt1 = wtime()
-!    open(unit=1,file=path(1:lenPath) // fname // ext,access='direct', &
-!         status='unknown',recl=8*nphi)
-!      do j=1,nl
-!        write(1,rec=j) (v(i,j),i=1,nphi)
-!      enddo
-!    close(1)
-    wtime_io = wtime_io + (wtime() - wt1)
-!
-    call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl,v,pvec,tvec,ierr)
+    call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl+1,vt_psi,p_main,t_half,ierr)
+    call write_2d_file ('vp'//velFileNum//'.h5',nphi+1,nl,vp_psi,p_half,t_main,ierr)
 !
     call ffopen (12,'flow_output_list.csv','a',ierr)
     write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
@@ -1061,6 +1223,8 @@ program conflow
     write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
     write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
     flush(OUTPUT_UNIT)
+!
+    wtime_io = wtime_io + (wtime() - wt1)
 !
 ! ***** Update time.
 !
@@ -1220,6 +1384,253 @@ function wtime ()
       return
 end function
 !#######################################################################
+subroutine interp2d (nxi,nyi,xi,yi,fi,nx,ny,x,y,f,ierr)
+!
+!-----------------------------------------------------------------------
+!
+! ****** Interpolate a 2D field from array FI(NXI,NYI), defined
+! ****** on the mesh XI(NXI) x YI(NYI), into the array F(NX,NY),
+! ****** defined on the mesh X(NX) x Y(NY).
+!
+! ****** Zero values are returned at data points outside the
+! ****** bounds of the XI x YI mesh.
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use constants
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      integer :: nxi,nyi
+      real(r_typ), dimension(nxi) :: xi
+      real(r_typ), dimension(nyi) :: yi
+      real(r_typ), dimension(nxi,nyi) :: fi
+      integer :: nx,ny
+      real(r_typ), dimension(nx) :: x
+      real(r_typ), dimension(ny) :: y
+      real(r_typ), dimension(nx,ny) :: f
+      integer :: ierr
+!
+!-----------------------------------------------------------------------
+!
+      integer :: i,j,iip1,jjp1
+      integer :: ii=0,jj=0
+      real(r_typ) :: dummy,ax,ay,xv,yv
+!
+!-----------------------------------------------------------------------
+!
+      real(r_typ), external :: flint
+!
+!-----------------------------------------------------------------------
+!
+      ierr=0
+!
+! ****** Check that the scales XI and YI are monotonic.
+!
+      dummy=flint(.true.,zero,nxi,xi,xi,ierr)
+      dummy=flint(.true.,zero,nyi,yi,yi,ierr)
+      if (ierr.ne.0) then
+        write (*,*)
+        write (*,*) '### ERROR in INTRP2D:'
+        write (*,*) '### Scales are not monotonically increasing.'
+        ierr=1
+        return
+      end if
+!
+! ****** Interpolate the data.
+!
+      do j=1,ny
+        yv=y(j)
+        if (yv.lt.yi(1).or.yv.gt.yi(nyi)) then
+          f(:,j)=0.
+          cycle
+        else
+          call interp (nyi,yi,yv,jj,jjp1,ay,ierr)
+          if (ierr.ne.0) then
+            f(:,j)=0.
+            cycle
+          end if
+        end if
+        do i=1,nx
+          xv=x(i)
+          if (xv.lt.xi(1).or.xv.gt.xi(nxi)) then
+            f(i,j)=0.
+            cycle
+          else
+            call interp (nxi,xi,xv,ii,iip1,ax,ierr)
+            if (ierr.ne.0) then
+              f(i,j)=0.
+              cycle
+            end if
+          end if
+          f(i,j)=(one-ax)*((one-ay)*fi(ii  ,jj  )+ay*fi(ii  ,jjp1)) &
+                 +ax *((one-ay)*fi(iip1,jj  )+ay*fi(iip1,jjp1))
+        enddo
+      enddo
+!
+end subroutine
+!#######################################################################
+function flint (check,x,n,xn,fn,ierr)
+!
+!-----------------------------------------------------------------------
+!
+! ****** Interpolate a function linearly.
+!
+!-----------------------------------------------------------------------
+!
+! ****** The funcion is defined at N nodes, with values given by
+! ****** FN(N) at positions XN(N).  The function value returned is
+! ****** the linear interpolant at X.
+!
+! ****** Note that if X.lt.XN(1), the function value returned
+! ****** is FN(1), and if X.gt.XN(N), the function value returned
+! ****** is FN(N).
+!
+! ****** Call once with CHECK=.true. to check that the values
+! ****** in XN(N) are monotonically increasing.  In this mode
+! ****** the array XN(N) is checked, and X and FN(N) are not
+! ****** accessed.  If the check is passed, IERR=0 is returned.
+! ****** Otherwise, IERR=1 is returned.
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use constants
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      logical :: check
+      real(r_typ) :: x
+      integer :: n
+      real(r_typ), dimension(n) :: xn,fn
+      integer :: ierr
+      real(r_typ) :: flint
+!
+!-----------------------------------------------------------------------
+!
+      integer :: i
+      real(r_typ) :: x1,x2,alpha
+!
+!-----------------------------------------------------------------------
+!
+      ierr=0
+      flint=0.
+!
+! ****** If CHECK=.true., check the abscissa table.
+!
+      if (check) then
+        if (n.le.0) then
+          write (*,*)
+          write (*,*) '### ERROR in FLINT:'
+          write (*,*) '### Invalid abscissa table dimension.'
+          write (*,*) 'N = ',n
+          ierr=1
+          return
+        end if
+        do i=1,n-1
+          if (xn(i+1).le.xn(i)) then
+            write (*,*)
+            write (*,*) '### ERROR in FLINT:'
+            write (*,*) '### Abscissa table values are not'// &
+                       ' monotonically increasing.'
+            write (*,*) 'N = ',n
+            write (*,*) 'XN = ',xn
+            ierr=1
+            return
+          end if
+        enddo
+        return
+      end if
+!
+! ****** Get the interpolated value.
+!
+      if (x.le.xn(1)) then
+        flint=fn(1)
+      else if (x.gt.xn(n)) then
+        flint=fn(n)
+      else
+        do i=1,n-1
+          if (x.ge.xn(i).and.x.lt.xn(i+1)) exit
+        enddo
+        x1=xn(i)
+        x2=xn(i+1)
+        alpha=(x-x1)/(x2-x1)
+        flint=fn(i)*(one-alpha)+fn(i+1)*alpha
+      end if
+!
+      return
+end function
+!#######################################################################
+subroutine interp (n,x,xv,i,ip1,a,ierr)
+!
+!-----------------------------------------------------------------------
+!
+! ****** Get the interpolation factor at XV from the table X(N).
+!
+!-----------------------------------------------------------------------
+!
+! ****** This routine does not do the actual interpolation.  Use the
+! ****** returned values of I, IP1, and A to get the interpolated
+! ****** value.
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      integer :: n
+      real(r_typ), dimension(n) :: x
+      real(r_typ) :: xv
+      integer :: i,ip1
+      real(r_typ) :: a
+      integer :: ierr
+!
+!-----------------------------------------------------------------------
+!
+      ierr=0
+!
+! ****** Check if the x-scale has only one point.
+!
+      if (n.eq.1.and.xv.eq.x(1)) then
+        ip1=1
+        a=0.
+        return
+      end if
+!
+! ****** Find the interval and compute the interpolation factor.
+!
+      do i=1,n-1
+        if (xv.ge.x(i).and.xv.le.x(i+1)) then
+          ip1=i+1
+          if (x(i).eq.x(i+1)) then
+            a=0.
+          else
+            a=(xv-x(i))/(x(i+1)-x(i))
+          end if
+          return
+        end if
+      enddo
+!
+! ****** ERROR: the value was not found.
+!
+      ierr=1
+!
+end subroutine
+!#######################################################################
 !
 !-----------------------------------------------------------------------
 !
@@ -1241,6 +1652,12 @@ end function
 !   - Cleaned up some code
 !   - Changes output file names to v[tp]######.h5
 !   - Created output csv file listing output flow files and times.
+!
+! 07/15/2022, RC, Version 0.5.0:
+!   - Changed output to have vt and vp on HipFT staggered meshes.
+!     This should be done directly, but for now, the conflow
+!     flows are interpolated to the HipFT grids before being written out.
+!   - Added constants module.
 !
 !-----------------------------------------------------------------------
 !
