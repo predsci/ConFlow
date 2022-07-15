@@ -4,9 +4,6 @@ Developer tasks for ConFlow
  - Add input flags for total time, cadence, etc.
  - Add input flags for using fixed seed or random seed.
 
- - Add output of text file with list of output files and their times and seq numbers
-   (similar to hipft).
-
  - Add scripts to automatically plot velocities, clean up a run, etc.
 
  - Add options for resolution:
