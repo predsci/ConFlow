@@ -21,7 +21,7 @@ Developer tasks for ConFlow
  - See if parts of the code (like plm) can be replaced with more
    modern versions (similar to the tesserial spherical harmonic code)
    for robustness and speed.
- - See if Fourier transform is (or can be replaced with) FFT?
+ - See if FFT can be replaced with a faster/parallel version (if its a significant runtime).
 
  - Profile code run and check for hot spots.
 

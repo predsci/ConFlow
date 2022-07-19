@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.4.0'
-      character(*), parameter :: cdate='07/13/2022'
+      character(*), parameter :: cvers='0.5.1'
+      character(*), parameter :: cdate='07/19/2022'
 !
 end module
 !#######################################################################
@@ -172,7 +172,7 @@ program conflow
   character(100) :: path
   character(6) :: velFileNum
 !
-  integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr
+  integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
 !
   real(r_typ) :: root3,root5,root7,root9
@@ -337,7 +337,8 @@ program conflow
 !c***********************************************************************
 2 format(5(4x,f8.3))
 3 format(6(4x,f8.3))
-  open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_v6.txt',status='old')
+  open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_aft_v1.txt', &
+       status='old')
     read(2,2) t0,t1,t2,t3,t4
     write(*,*)
     write(*,*) 'Differential rotation coeffs (m/s) t0,t1,t2,t3,t4:'
@@ -354,7 +355,7 @@ program conflow
 !c***********************************************************************
     read(2,3) s0,s1,s2,s3,s4,s5
     write(*,*)
-    write(*,*) 'Differential rotation coeffs (m/s) s0,s1,s2,s3,s4,s5:'
+    write(*,*) 'Meridional flow coeffs (m/s) s0,s1,s2,s3,s4,s5:'
     write(*,*) s0,s1,s2,s3,s4,s5
     coefMF(1)=s0*deltaT/rSun
     coefMF(2)=s1*deltaT/rSun
@@ -717,7 +718,6 @@ program conflow
         end if
       end do ! End l-loop step1
     end do ! End m-loop step1
-
 !c***********************************************************************
 !c
 !c Step 2
@@ -820,7 +820,6 @@ program conflow
         end if
       end do ! End l-loop Step2
     end do ! End m-loop Step2
-
 !c***********************************************************************
 !c
 !c Step 3
@@ -923,7 +922,6 @@ program conflow
         end if
       end do ! End l-loop Step3
     end do ! End m-loop Step3
-
 !c***********************************************************************
 !c
 !c Step 4
@@ -1152,9 +1150,14 @@ program conflow
 !
 ! ****** VT (NT,NPM) ******
 !
-! ****** Set up v_ext for vt:
+! ****** Set up v_ext for vt.
+! ****** Since "v" is in latitude, need to flip theta axis in the process.
 !
-    v_ext(2:nphi+1,2:nl+1) = u(:,:)
+    do ii=2,nphi+1
+      do jj=2,nl+1
+        v_ext(ii,jj) = v(ii-1,nl+1-(jj-1))
+      enddo
+    enddo
 !
 ! ****** Set "past the pole" values:
 !
@@ -1183,8 +1186,13 @@ program conflow
 ! ****** VP (NTM,NP) ******
 !
 ! ****** Set up v_ext for vp:
+! ****** Since "u" is in latitude, need to flip theta axis in the process.
 !
-    v_ext(2:nphi+1,2:nl+1) = v(:,:)
+    do ii=2,nphi+1
+      do jj=2,nl+1
+        v_ext(ii,jj) = u(ii-1,nl+1-(jj-1))
+      enddo
+    enddo
 !
 ! ****** Set "past the pole" values:
 !
@@ -1658,6 +1666,12 @@ end subroutine
 !     This should be done directly, but for now, the conflow
 !     flows are interpolated to the HipFT grids before being written out.
 !   - Added constants module.
+!
+! 07/19/2022, RC, Version 0.5.1:
+!   - BUG FIX: Flipped the theta axis in the output arrays since u and v
+!              are in latitude (south to north), and vt/vp is output in
+!              colatitude (north to south).
+!   - BUG FIX: u and v were being written to vt and vp instead of vp and vt.
 !
 !-----------------------------------------------------------------------
 !
