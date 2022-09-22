@@ -242,28 +242,28 @@ program conflow
   seed_new(:)=12345
   call RANDOM_SEED(put=seed_new)
 !
-!c***********************************************************************
-!c                                                                      *
-!c  Numeric constants
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  Numeric constants
+!                                                                      
+!-----------------------------------------------------------------------
   root3=sqrt(three)
   root5=sqrt(five)
   root7=sqrt(seven)
   root9=sqrt(nine)
   xi=(0.,one)
-!c***********************************************************************
-!c                                                                      *
-!c  Physical constants
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                      
+!  Physical constants
+!                                                                      
+!-----------------------------------------------------------------------
   rSun = 6.96e+08_r_typ   ! (meters)
   daySec = 86400.0_r_typ
-!c***********************************************************************
-!c                                                                      *
-!c  Time (seconds) and space (radians) steps
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                      
+!  Time (seconds) and space (radians) steps
+!                                                                      
+!-----------------------------------------------------------------------
   deltaT = fifteen*60.0_r_typ
   tmax = 28*24*3600
   curr_time = 0.
@@ -271,7 +271,9 @@ program conflow
   dphi = twopi/nphi
   dtheta = pi/nl
 !
-! ****** Set up output scales and arrays.
+!-----------------------------------------------------------------------
+!
+!****** Set up output scales and arrays.
 !
 ! Currently, the VT and VP are on the same inner-half-half mesh
 ! with 1024x512 points.
@@ -330,11 +332,11 @@ program conflow
   print*,p_main(1),t_main(1),p_main(nphi),t_main(nl)
   print*,p_half(1),t_half(1),p_half(nphi+1),t_half(nl+1)
 !
-!***********************************************************************
-!c                                                                      *
-!c  Differential Rotation coefficients m/s relative to Carrington
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                      
+!  Differential Rotation coefficients m/s relative to Carrington
+!                                                                      
+!-----------------------------------------------------------------------
 2 format(5(4x,f8.3))
 3 format(6(4x,f8.3))
   open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_aft_v1.txt', &
@@ -348,11 +350,11 @@ program conflow
     coefDR(3)=t2*deltaT/rSun
     coefDR(4)=t3*deltaT/rSun
     coefDR(5)=t4*deltaT/rSun
-!c***********************************************************************
-!c
-!c Meridional flow speed of supergranules in m/s poleward
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+! Meridional flow speed of supergranules in m/s poleward
+!
+!-----------------------------------------------------------------------
     read(2,3) s0,s1,s2,s3,s4,s5
     write(*,*)
     write(*,*) 'Meridional flow coeffs (m/s) s0,s1,s2,s3,s4,s5:'
@@ -364,20 +366,20 @@ program conflow
     coefMF(5)=s4*deltaT/rSun
     coefMF(6)=s5*deltaT/rSun
   close(2)
-!c***********************************************************************
-!c
-!c  Create coefficients for spherical harmonics.
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+!  Create coefficients for spherical harmonics.
+!
+!-----------------------------------------------------------------------
   call plmcoef(nl,coef)
 !
   write(*,*)
   write(*,*) 'Legendre recurrance coefficients calculated.'
-!c***********************************************************************
-!c                                                                      *
-!c  Construct the convection spectrum.                                  *
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  Construct the convection spectrum.                                 
+!                                                                     
+!-----------------------------------------------------------------------
   do l=1,lmax
     l1=l+1
     el=real(l,r_typ)
@@ -405,20 +407,20 @@ program conflow
   end do
   write(*,*)
   write(*,*) 'Velocity spectrum calculated'
-!c***********************************************************************
-!c
-!c Coupling Coefficients
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+! Coupling Coefficients
+!
+!-----------------------------------------------------------------------
   do m=1,lmax
     m1=m+1
     em=real(m,r_typ)
     do l=m,lmax
       l1=l+1
       el=real(l,r_typ)
-!c
-!c Modify differential rotation and meridional flow with l (depth)
-!c
+!
+! Modify differential rotation and meridional flow with l (depth)
+!
       elfunc=1.0
       elfuncMF=1.0
       DR0=elfunc*coefDR(1)
@@ -445,6 +447,20 @@ program conflow
       BAALP3=(el+em+3.)*(el-em+3.)/((2.*el+7.)*(2.*el+5.))
       BAALP4=(el+em+4.)*(el-em+4.)/((2.*el+9.)*(2.*el+7.))
       BAALP5=(el+em+5.)*(el-em+5.)/((2.*el+11.)*(2.*el+9.))
+! -----------------------------------------------------------------------
+! Note (Raphael): It is the couplings below that take into account
+! the advection equation satisfied by the velocity in presence of 
+! the Meridional Flow (MF) and Differential Rotation (DR). 
+! These couplings come from the projection of the asso. Legendre Polyn.
+! E.g. their recursion relation eliminate the powers of cos(theta)
+! of the formula of the DR, which is why we do not see them anywhere.  
+! See Appendix of Hathaway et al. (2010). 
+! Without advection by MF and DR, these coupling terms would not exist. 
+! 
+!
+! TODO (Raphael): partial or full derivation of the coupling terms 
+! that is not documented in Dave's papers. 
+! -----------------------------------------------------------------------
 !
 !  Coupling with l+6 component
 !
@@ -510,9 +526,9 @@ program conflow
         BAA4=BAA0*(BAALP1*(BAALP2+BAALP1+BAALP0) + BAALP0*(BAALP1+BAALP0+BAALM1))
         MFlowP1(l1,m1)=-(el+2.)*BAA0*MF0 + ((el+1.)*BAA1-(el+2.)*BAA2)*MF2 + ((el+1.)*BAA3-(el+2.)*BAA4)*MF4
       end if
-!c
-!c Coupling with l component
-!c
+!
+! Coupling with l component
+!
       BAA2=BAALP1+BAALP0
       BAA4=BAALP1*(BAALP2+BAALP1+BAALP0) + BAALP0*(BAALP1+BAALP0+BAALM1)
       Omega(l1,m1)=em*(DR0+BAA2*DR2+BAA4*DR4)
@@ -524,9 +540,9 @@ program conflow
       BAA5=BAALP1*(BAALP2*(BAALP3+BAALP2+BAALP1) + BAALP1*(BAALP2+BAALP1+BAALP0) + BAALP0*(BAALP2+BAALP1+BAALP0+BAALM1))
       BAA6=BAALP0*(BAALP1*(BAALP2+BAALP1+BAALP0+BAALM1) + BAALP0*(BAALP1+BAALP0+BAALM1) + BAALM1*(BAALP0+BAALM1+BAALM2))
       MFlow0(l1,m1)=(el*BAA1-(el+1.)*BAA2)*MF1 + (el*BAA3-(el+1.)*BAA4)*MF3 + (el*BAA5-(el+1.)*BAA6)*MF5
-!c
-!c  Coupling with l-1 component
-!c
+!
+!  Coupling with l-1 component
+!
       if ((l-1) .ge. m) then
         BAA0=1./coef(l1,m1)
         BAA1=BAA0*(BAALP1 + BAALP0 + BAALM1)
@@ -538,9 +554,9 @@ program conflow
         BAA4=BAA0*BAALM1*(BAALP1+BAALP0+BAALM1+BAALM2)
         MFlowM1(l1,m1)=(el-1.)*BAA0*MF0 + ((el-1.)*BAA1-el*BAA2)*MF2 + ((el-1.)*BAA3-el*BAA4)*MF4
       end if
-!c
-!c  Coupling with l-2 component
-!c
+!
+!  Coupling with l-2 component
+!
       if ((l-2) .ge. m) then
         BAA0=1./(coef(l1,m1)*coef(l1-1,m1))
         BAA1=BAA0*(BAALP1+BAALP0+BAALM1+BAALM2)
@@ -552,9 +568,9 @@ program conflow
         BAA5=BAA0*BAALM2*(BAALP1+BAALP0+BAALM1+BAALM2+BAALM3)
         MFlowM2(l1,m1)=(el-2.)*BAA0*MF1 + ((el-2.)*BAA2-(el-1.)*BAA3)*MF3 + ((el-2.)*BAA4-(el-1.)*BAA5)*MF5
       end if
-!c
-!c  Coupling with l-3 component
-!c
+!
+!  Coupling with l-3 component
+!
       if ((l-3) .ge. m) then
         BAA0=1./(coef(l1,m1)*coef(l1-1,m1)*coef(l1-2,m1))
         OmegaM3(l1,m1)=em*BAA0*DR3
@@ -563,9 +579,9 @@ program conflow
         BAA3=BAA0*BAALM3
         MFlowM3(l1,m1)=(el-3.)*BAA0*MF2 + ((el-3.)*BAA2-(el-2.)*BAA3)*MF4
       end if
-!c
-!c  Coupling with l-4 component
-!c
+!
+!  Coupling with l-4 component
+!
       if ((l-4) .ge. m) then
         BAA0=1./(coef(l1,m1)*coef(l1-1,m1)*coef(l1-2,m1)*coef(l1-3,m1))
         OmegaM4(l1,m1)=em*BAA0*DR4
@@ -574,27 +590,27 @@ program conflow
         BAA2=BAA0*BAALM4
         MFlowM4(l1,m1)=(el-4.)*BAA0*MF3 + ((el-4.)*BAA1-(el-3.)*BAA2)*MF5
       end if
-!c
-!c  Coupling with l-5 component
-!c
+!
+!  Coupling with l-5 component
+!
       if ((l-5) .ge. m) then
         BAA0=1./(coef(l1,m1)*coef(l1-1,m1)*coef(l1-2,m1)*coef(l1-3,m1)*coef(l1-4,m1))
         MFlowM5(l1,m1)=(el-5.)*BAA0*MF4
       end if
-!c
-!c  Coupling with l-6 component
-!c
+!
+!  Coupling with l-6 component
+!
       if ((l-6) .ge. m) then
         BAA0=1./(coef(l1,m1)*coef(l1-1,m1)*coef(l1-2,m1)*coef(l1-3,m1)*coef(l1-4,m1)*coef(l1-5,m1))
         MFlowM6(l1,m1)=(el-6.)*BAA0*MF5
       end if
     end do ! End of m-loop
   end do ! End of l=loop
-!c***********************************************************************
-!c
-!c  Construct series of velocity maps at deltaT (in seconds) intervals
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+!  Construct series of velocity maps at deltaT (in seconds) intervals
+!
+!-----------------------------------------------------------------------
 !
   write(*,*)
   write(*,*) 'A time step of ', deltaT, 'seconds will produce ', &
@@ -614,410 +630,410 @@ program conflow
   do itime=1,nfiles
     ifile=itime
 !
-!c***********************************************************************
-!c
-!c  Evolve spectral coefficients using 4th order Runga-Kutta
-!c
-!c Step 1
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+!  Evolve spectral coefficients using 4th order Runga-Kutta
+!
+! Step 1
+!
+!-----------------------------------------------------------------------
     do m=1,lmax-1
       m1=m+1
       do l=m,lmax-1
         l1=l+1
         ds(l1,m1,1)=0.
         dt(l1,m1,1)=0.
-!c
-!c  contribution from l+6 component
-!c
+!
+!  contribution from l+6 component
+!
         if ((l+6) .lt. lmax-1) then
           ds(l1,m1,1)=ds(l1,m1,1)+MFlowP6(l1,m1)*s(l1+6,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+MFlowP6(l1,m1)*t(l1+6,m1)
         end if
-!c
-!c  contribution from l+5 component
-!c
+!
+!  contribution from l+5 component
+!
         if ((l+5) .lt. lmax-1) then
           ds(l1,m1,1)=ds(l1,m1,1)+MFlowP5(l1,m1)*s(l1+5,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+MFlowP5(l1,m1)*t(l1+5,m1)
         end if
-!c
-!c  contribution from l+4 component
-!c
+!
+!  contribution from l+4 component
+!
         if ((l+4) .lt. lmax-1) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*s(l1+4,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*t(l1+4,m1)
          end if
-!c
-!c  contribution from l+3 component
-!c
+!
+!  contribution from l+3 component
+!
         if ((l+3) .lt. lmax-1) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*s(l1+3,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*t(l1+3,m1)
         end if
-!c
-!c  contribution from l+2 component
-!c
+!
+!  contribution from l+2 component
+!
         if ((l+2) .lt. lmax-1) then
          ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*s(l1+2,m1)
          dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*t(l1+2,m1)
         end if
-!c
-!c  contribution from l+1 component
-!c
+!
+!  contribution from l+1 component
+!
         if ((l+1) .lt. lmax-1) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*s(l1+1,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*t(l1+1,m1)
         end if
-!c
-!c  contribution from l component
-!c
+!
+!  contribution from l component
+!
         ds(l1,m1,1)=ds(l1,m1,1)+(0.0*xi*Omega(l1,m1)+MFlow0(l1,m1))*s(l1,m1) ! No Omega(l1,m1) term?
         dt(l1,m1,1)=dt(l1,m1,1)+(0.0*xi*Omega(l1,m1)+MFlow0(l1,m1))*t(l1,m1) ! No Omega(l1,m1) term?
-!c
-!c  contribution from l-1 component
-!c
+!
+!  contribution from l-1 component
+!
         if ((l-1) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*s(l1-1,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*t(l1-1,m1)
         end if
-!c
-!c  contribution from l-2 component
-!c
+!
+!  contribution from l-2 component
+!
         if ((l-2) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*s(l1-2,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*t(l1-2,m1)
         end if
-!c
-!c  contribution from l-3 component
-!c
+!
+!  contribution from l-3 component
+!
         if ((l-3) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*s(l1-3,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*t(l1-3,m1)
         end if
-!c
-!c  contribution from l-4 component
-!c
+!
+!  contribution from l-4 component
+!
         if ((l-4) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*s(l1-4,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*t(l1-4,m1)
         end if
-!c
-!c  contribution from l-5 component
-!c
+!
+!  contribution from l-5 component
+!
         if ((l-5) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+MFlowM5(l1,m1)*s(l1-5,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+MFlowM5(l1,m1)*t(l1-5,m1)
         end if
-!c
-!c  contribution from l-6 component
-!c
+!
+!  contribution from l-6 component
+!
         if ((l-6) .ge. m) then
           ds(l1,m1,1)=ds(l1,m1,1)+MFlowM6(l1,m1)*s(l1-6,m1)
           dt(l1,m1,1)=dt(l1,m1,1)+MFlowM6(l1,m1)*t(l1-6,m1)
         end if
       end do ! End l-loop step1
     end do ! End m-loop step1
-!c***********************************************************************
-!c
-!c Step 2
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+! Step 2
+!
+!-----------------------------------------------------------------------
     do m=1,lmax-1
       m1=m+1
       do l=m,lmax-1
         l1=l+1
         ds(l1,m1,2)=0.
         dt(l1,m1,2)=0.
-!c
-!c  contribution from l+6 component
-!c
+!
+!  contribution from l+6 component
+!
         if ((l+6) .lt. lmax-1) then
           ds(l1,m1,2)=ds(l1,m1,2)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,1)/2.)*exp(xi*Omega(l1+6,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,1)/2.)*exp(xi*Omega(l1+6,m1)/2.)
         end if
-!c
-!c  contribution from l+5 component
-!c
+!
+!  contribution from l+5 component
+!
         if ((l+5) .lt. lmax-1) then
           ds(l1,m1,2)=ds(l1,m1,2)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,1)/2.)*exp(xi*Omega(l1+5,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,1)/2.)*exp(xi*Omega(l1+5,m1)/2.)
         end if
-!c
-!c  contribution from l+4 component
-!c
+!
+!  contribution from l+4 component
+!
         if ((l+4) .lt. lmax-1) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,1)/2.)*exp(xi*Omega(l1+4,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,1)/2.)*exp(xi*Omega(l1+4,m1)/2.)
         end if
-!c
-!c  contribution from l+3 component
-!c
+!
+!  contribution from l+3 component
+!
         if ((l+3) .lt. lmax-1) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,1)/2.)*exp(xi*Omega(l1+3,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,1)/2.)*exp(xi*Omega(l1+3,m1)/2.)
         end if
-!c
-!c  contribution from l+2 component
-!c
+!
+!  contribution from l+2 component
+!
         if ((l+2) .lt. lmax-1) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,1)/2.)*exp(xi*Omega(l1+2,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,1)/2.)*exp(xi*Omega(l1+2,m1)/2.)
         end if
-!c
-!c  contribution from l+1 component
-!c
+!
+!  contribution from l+1 component
+!
         if ((l+1) .lt. lmax-1) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,1)/2.)*exp(xi*Omega(l1+1,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,1)/2.)*exp(xi*Omega(l1+1,m1)/2.)
         end if
-!c
-!c  contribution from l component
-!c
+!
+!  contribution from l component
+!
         ds(l1,m1,2)=ds(l1,m1,2)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,1)/2.)*exp(xi*Omega(l1,m1)/2.)
         dt(l1,m1,2)=dt(l1,m1,2)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,1)/2.)*exp(xi*Omega(l1,m1)/2.)
-!c
-!c  contribution from l-1 component
-!c
+!
+!  contribution from l-1 component
+!
         if ((l-1) .ge. m) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,1)/2.)*exp(xi*Omega(l1-1,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,1)/2.)*exp(xi*Omega(l1-1,m1)/2.)
         end if
-!c
-!c  contribution from l-2 component
-!c
+!
+!  contribution from l-2 component
+!
         if ((l-2) .ge. m) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,1)/2.)*exp(xi*Omega(l1-2,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,1)/2.)*exp(xi*Omega(l1-2,m1)/2.)
         end if
-!c
-!c  contribution from l-3 component
-!c
+!
+!  contribution from l-3 component
+!
         if ((l-3) .ge. m) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,1)/2.)*exp(xi*Omega(l1-3,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,1)/2.)*exp(xi*Omega(l1-3,m1)/2.)
         end if
-!c
-!c  contribution from l-4 component
-!c
+!
+!  contribution from l-4 component
+!
         if ((l-4) .ge. m) then
           ds(l1,m1,2)=ds(l1,m1,2)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,1)/2.)*exp(xi*Omega(l1-4,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,1)/2.)*exp(xi*Omega(l1-4,m1)/2.)
         end if
-!c
-!c  contribution from l-5 component
-!c
+!
+!  contribution from l-5 component
+!
         if ((l-5) .ge. m) then
           ds(l1,m1,2)=ds(l1,m1,2)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,1)/2.)*exp(xi*Omega(l1-5,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,1)/2.)*exp(xi*Omega(l1-5,m1)/2.)
         end if
-!c
-!c  contribution from l-6 component
-!c
+!
+!  contribution from l-6 component
+!
         if ((l-6) .ge. m) then
           ds(l1,m1,2)=ds(l1,m1,2)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,1)/2.)*exp(xi*Omega(l1-6,m1)/2.)
           dt(l1,m1,2)=dt(l1,m1,2)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,1)/2.)*exp(xi*Omega(l1-6,m1)/2.)
         end if
       end do ! End l-loop Step2
     end do ! End m-loop Step2
-!c***********************************************************************
-!c
-!c Step 3
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+! Step 3
+!
+!-----------------------------------------------------------------------
     do m=1,lmax-1
       m1=m+1
       do l=m,lmax-1
         l1=l+1
         ds(l1,m1,3)=0.
         dt(l1,m1,3)=0.
-!c
-!c  contribution from l+6 component
-!c
+!
+!  contribution from l+6 component
+!
         if ((l+6) .lt. lmax-1) then
           ds(l1,m1,3)=ds(l1,m1,3)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,2)/2.)*exp(xi*Omega(l1+6,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,2)/2.)*exp(xi*Omega(l1+6,m1)/2.)
         end if
-!c
-!c  contribution from l+5 component
-!c
+!
+!  contribution from l+5 component
+!
         if ((l+5) .lt. lmax-1) then
          ds(l1,m1,3)=ds(l1,m1,3)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,2)/2.)*exp(xi*Omega(l1+5,m1)/2.)
          dt(l1,m1,3)=dt(l1,m1,3)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,2)/2.)*exp(xi*Omega(l1+5,m1)/2.)
         end if
-!c
-!c  contribution from l+4 component
-!c
+!
+!  contribution from l+4 component
+!
         if ((l+4) .lt. lmax-1) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,2)/2.)*exp(xi*Omega(l1+4,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,2)/2.)*exp(xi*Omega(l1+4,m1)/2.)
         end if
-!c
-!c  contribution from l+3 component
-!c
+!
+!  contribution from l+3 component
+!
         if ((l+3) .lt. lmax-1) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,2)/2.)*exp(xi*Omega(l1+3,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,2)/2.)*exp(xi*Omega(l1+3,m1)/2.)
         end if
-!c
-!c  contribution from l+2 component
-!c
+!
+!  contribution from l+2 component
+!
         if ((l+2) .lt. lmax-1) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,2)/2.)*exp(xi*Omega(l1+2,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,2)/2.)*exp(xi*Omega(l1+2,m1)/2.)
         end if
-!c
-!c  contribution from l+1 component
-!c
+!
+!  contribution from l+1 component
+!
         if ((l+1) .lt. lmax-1) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,2)/2.)*exp(xi*Omega(l1+1,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,2)/2.)*exp(xi*Omega(l1+1,m1)/2.)
         end if
-!c
-!c  contribution from l component
-!c
+!
+!  contribution from l component
+!
         ds(l1,m1,3)=ds(l1,m1,3)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,2)/2.)*exp(xi*Omega(l1,m1)/2.)
         dt(l1,m1,3)=dt(l1,m1,3)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,2)/2.)*exp(xi*Omega(l1,m1)/2.)
-!c
-!c  contribution from l-1 component
-!c
+!
+!  contribution from l-1 component
+!
         if ((l-1) .ge. m) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,2)/2.)*exp(xi*Omega(l1-1,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,2)/2.)*exp(xi*Omega(l1-1,m1)/2.)
         end if
-!c
-!c  contribution from l-2 component
-!c
+!
+!  contribution from l-2 component
+!
         if ((l-2) .ge. m) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,2)/2.)*exp(xi*Omega(l1-2,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,2)/2.)*exp(xi*Omega(l1-2,m1)/2.)
         end if
-!c
-!c  contribution from l-3 component
-!c
+!
+!  contribution from l-3 component
+!
         if ((l-3) .ge. m) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,2)/2.)*exp(xi*Omega(l1-3,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,2)/2.)*exp(xi*Omega(l1-3,m1)/2.)
         end if
-!c
-!c  contribution from l-4 component
-!c
+!
+!  contribution from l-4 component
+!
         if ((l-4) .ge. m) then
           ds(l1,m1,3)=ds(l1,m1,3)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,2)/2.)*exp(xi*Omega(l1-4,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,2)/2.)*exp(xi*Omega(l1-4,m1)/2.)
         end if
-!c
-!c  contribution from l-5 component
-!c
+!
+!  contribution from l-5 component
+!
         if ((l-5) .ge. m) then
           ds(l1,m1,3)=ds(l1,m1,3)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,2)/2.)*exp(xi*Omega(l1-5,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,2)/2.)*exp(xi*Omega(l1-5,m1)/2.)
         end if
-!c
-!c  contribution from l-6 component
-!c
+!
+!  contribution from l-6 component
+!
         if ((l-6) .ge. m) then
           ds(l1,m1,3)=ds(l1,m1,3)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,2)/2.)*exp(xi*Omega(l1-6,m1)/2.)
           dt(l1,m1,3)=dt(l1,m1,3)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,2)/2.)*exp(xi*Omega(l1-6,m1)/2.)
         end if
       end do ! End l-loop Step3
     end do ! End m-loop Step3
-!c***********************************************************************
-!c
-!c Step 4
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+! Step 4
+!
+!-----------------------------------------------------------------------
     do m=1,lmax-1
       m1=m+1
       do l=m,lmax-1
         l1=l+1
         ds(l1,m1,4)=0.
         dt(l1,m1,4)=0.
-!c
-!c  contribution from l+6 component
-!c
+!
+!  contribution from l+6 component
+!
         if ((l+6) .lt. lmax-1) then
           ds(l1,m1,4)=ds(l1,m1,4)+MFlowP6(l1,m1)*(s(l1+6,m1)+ds(l1+6,m1,3))*exp(xi*Omega(l1+6,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+MFlowP6(l1,m1)*(t(l1+6,m1)+dt(l1+6,m1,3))*exp(xi*Omega(l1+6,m1))
         end if
-!c
-!c  contribution from l+5 component
-!c
+!
+!  contribution from l+5 component
+!
         if ((l+5) .lt. lmax-1) then
           ds(l1,m1,4)=ds(l1,m1,4)+MFlowP5(l1,m1)*(s(l1+5,m1)+ds(l1+5,m1,3))*exp(xi*Omega(l1+5,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+MFlowP5(l1,m1)*(t(l1+5,m1)+dt(l1+5,m1,3))*exp(xi*Omega(l1+5,m1))
         end if
-!c
-!c  contribution from l+4 component
-!c
+!
+!  contribution from l+4 component
+!
         if ((l+4) .lt. lmax-1) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(s(l1+4,m1)+ds(l1+4,m1,3))*exp(xi*Omega(l1+4,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP4(l1,m1)+MFlowP4(l1,m1))*(t(l1+4,m1)+dt(l1+4,m1,3))*exp(xi*Omega(l1+4,m1))
         end if
-!c
-!c  contribution from l+3 component
-!c
+!
+!  contribution from l+3 component
+!
         if ((l+3) .lt. lmax-1) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(s(l1+3,m1)+ds(l1+3,m1,3))*exp(xi*Omega(l1+3,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP3(l1,m1)+MFlowP3(l1,m1))*(t(l1+3,m1)+dt(l1+3,m1,3))*exp(xi*Omega(l1+3,m1))
         end if
-!c
-!c  contribution from l+2 component
-!c
+!
+!  contribution from l+2 component
+!
         if ((l+2) .lt. lmax-1) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(s(l1+2,m1)+ds(l1+2,m1,3))*exp(xi*Omega(l1+2,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP2(l1,m1)+MFlowP2(l1,m1))*(t(l1+2,m1)+dt(l1+2,m1,3))*exp(xi*Omega(l1+2,m1))
         end if
-!c
-!c  contribution from l+1 component
-!c
+!
+!  contribution from l+1 component
+!
         if ((l+1) .lt. lmax-1) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(s(l1+1,m1)+ds(l1+1,m1,3))*exp(xi*Omega(l1+1,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaP1(l1,m1)+MFlowP1(l1,m1))*(t(l1+1,m1)+dt(l1+1,m1,3))*exp(xi*Omega(l1+1,m1))
         end if
-!c
-!c  contribution from l component
-!c
+!
+!  contribution from l component
+!
         ds(l1,m1,4)=ds(l1,m1,4)+MFlow0(l1,m1)*(s(l1,m1)+ds(l1,m1,3))*exp(xi*Omega(l1,m1))
         dt(l1,m1,4)=dt(l1,m1,4)+MFlow0(l1,m1)*(t(l1,m1)+dt(l1,m1,3))*exp(xi*Omega(l1,m1))
-!c
-!c  contribution from l-1 component
-!c
+!
+!  contribution from l-1 component
+!
         if ((l-1) .ge. m) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(s(l1-1,m1)+ds(l1-1,m1,3))*exp(xi*Omega(l1-1,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM1(l1,m1)+MFlowM1(l1,m1))*(t(l1-1,m1)+dt(l1-1,m1,3))*exp(xi*Omega(l1-1,m1))
         end if
-!c
-!c  contribution from l-2 component
-!c
+!
+!  contribution from l-2 component
+!
         if ((l-2) .ge. m) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(s(l1-2,m1)+ds(l1-2,m1,3))*exp(xi*Omega(l1-2,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM2(l1,m1)+MFlowM2(l1,m1))*(t(l1-2,m1)+dt(l1-2,m1,3))*exp(xi*Omega(l1-2,m1))
         end if
-!c
-!c  contribution from l-3 component
-!c
+!
+!  contribution from l-3 component
+!
         if ((l-3) .ge. m) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(s(l1-3,m1)+ds(l1-3,m1,3))*exp(xi*Omega(l1-3,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM3(l1,m1)+MFlowM3(l1,m1))*(t(l1-3,m1)+dt(l1-3,m1,3))*exp(xi*Omega(l1-3,m1))
         end if
-!c
-!c  contribution from l-4 component
-!c
+!
+!  contribution from l-4 component
+!
         if ((l-4) .ge. m) then
           ds(l1,m1,4)=ds(l1,m1,4)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(s(l1-4,m1)+ds(l1-4,m1,3))*exp(xi*Omega(l1-4,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+(xi*OmegaM4(l1,m1)+MFlowM4(l1,m1))*(t(l1-4,m1)+dt(l1-4,m1,3))*exp(xi*Omega(l1-4,m1))
         end if
-!c
-!c  contribution from l-5 component
-!c
+!
+!  contribution from l-5 component
+!
         if ((l-5) .ge. m) then
           ds(l1,m1,4)=ds(l1,m1,4)+MFlowM5(l1,m1)*(s(l1-5,m1)+ds(l1-5,m1,3))*exp(xi*Omega(l1-5,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+MFlowM5(l1,m1)*(t(l1-5,m1)+dt(l1-5,m1,3))*exp(xi*Omega(l1-5,m1))
         end if
-!c
-!c  contribution from l-6 component
-!c
+!
+!  contribution from l-6 component
+!
         if ((l-6) .ge. m) then
           ds(l1,m1,4)=ds(l1,m1,4)+MFlowM6(l1,m1)*(s(l1-6,m1)+ds(l1-6,m1,3))*exp(xi*Omega(l1-6,m1))
           dt(l1,m1,4)=dt(l1,m1,4)+MFlowM6(l1,m1)*(t(l1-6,m1)+dt(l1-6,m1,3))*exp(xi*Omega(l1-6,m1))
@@ -1046,14 +1062,14 @@ program conflow
       end do
     end do
     !write(*,*) 'Spectral Coefficients updated'
-!c***********************************************************************
-!c                                                                      *
-!c  Calculate the vector velocity components at each latitude.
-!c  Equator is at jj=nx/2 + 2.5 due to wrap-around border
-!c  j=1 is centered 0.5*dtheta above and below the equator
-!c  j=nxhalf is centered 0.5*dtheta inside each pole
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  Calculate the vector velocity components at each latitude.
+!  Equator is at jj=nx/2 + 2.5 due to wrap-around border
+!  j=1 is centered 0.5*dtheta above and below the equator
+!  j=nxhalf is centered 0.5*dtheta inside each pole
+!                                                                     
+!-----------------------------------------------------------------------
     do j=1,nlhalf
       jn=nlhalf+j
       js=nlhalf+1-j
@@ -1061,23 +1077,23 @@ program conflow
       x=cos(theta)
       sintheta=sin(theta)
       rst=1.0/sintheta
-!c***********************************************************************
-!c                                                                      *
-!c  calculate the spectral coefficients for wavenumber m at all x.      *
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  calculate the spectral coefficients for wavenumber m at all x.     
+!                                                                     
+!-----------------------------------------------------------------------
       m=0
       m1=m+1
       unorth(m1)=0.
       usouth(m1)=0.
       vnorth(m1)=0.
       vsouth(m1)=0.
-!c***********************************************************************
-!c                                                                      *
-!c  Split non-axisymmetric signal into equal positive and               *
-!c  negative freqencies.                                                *
-!c                                                                      *
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  Split non-axisymmetric signal into equal positive and              
+!  negative freqencies.                                               
+!                                                                     
+!-----------------------------------------------------------------------
       do m=1,lmax-1
         m1=m+1
         m2=nphi+1-m
@@ -1089,11 +1105,11 @@ program conflow
         do l=m,lmax-1
           l1=l+1
           l2=l+2
-!c***********************************************************************
-!c
-!c  Construct velocity functions
-!c
-!c***********************************************************************
+!-----------------------------------------------------------------------
+!
+!  Construct velocity functions
+!
+!-----------------------------------------------------------------------
           eo=1.-2.*mod(l-m,2)
           v1=l*p(l2)/coef(l2,m1)-(l+1.)*p(l)/coef(l1,m1)
           v2=-m*p(l1)
@@ -1118,11 +1134,11 @@ program conflow
         vnorth(m1)=0.
         vsouth(m1)=0.
       end do
-!***********************************************************************
-!                                                                      *
-!  Calculate the vector velocity components at all phi positions.      *
-!                                                                      *
-!***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  Calculate the vector velocity components at all phi positions.     
+!                                                                     
+!-----------------------------------------------------------------------
       call four1(unorth,nphi,-1)
       call four1(usouth,nphi,-1)
       call four1(vnorth,nphi,-1)
@@ -1138,11 +1154,11 @@ program conflow
         v(i,js)=real(vsouth(i),r_typ)
       end do ! End phi-loop
     end do ! End latitude-loop
-!***********************************************************************
-!                                                                      *
-!  Write longitudinal and co-latitudinal velocity to disk file.        *
-!                                                                      *
-!***********************************************************************
+!-----------------------------------------------------------------------
+!                                                                     
+!  Write longitudinal and co-latitudinal velocity to disk file.       
+!                                                                     
+!-----------------------------------------------------------------------
 !
 ! ****** Interpolate ConFlow flows into PSI grid flow arrays.
 !
