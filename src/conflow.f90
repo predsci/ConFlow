@@ -455,16 +455,22 @@ program conflow
 !
 ! Here, "Coupling" means that the spectral coefficient for the velocity  
 ! components at a given l and m value (Slm and Tlm in Hathaway et al.) 
-! depend spectral coefficient at different l values, up to l+/-6. 
+! depend on spectral coefficient at different l values, up to l+/-6. 
 !
 ! These couplings come from the projection and orthoganlity of the 
-! associated Legendre Polynomials "Plm".E.g. their recursion relation 
+! associated Legendre Polynomials "Plm". E.g. their recursion relation 
 ! eliminate the powers of cos(theta) of the formula of the DR, which is 
 ! why we do not see them anywhere in the algorithm.  
 ! Without advection by MF and DR, these coupling terms would not exist. 
-! See Appendix of Hathaway et al. (2010). 
-! 
-! TODO (Raphael): partial or full derivation of the coupling terms 
+!
+! See Appendix of Hathaway et al. (2010). However, only the details for 
+! the radial component (Rlm) of the velocity are explicited. 
+! So far, there is no reference showing even a partial derivation of the 
+! couplings for the toroidal and poloidal components (Slm and Tlm). 
+!  
+!
+! TODO (Raphael): partial or full derivation of the coupling terms for 
+! the toroidal and poloidal components (Slm and Tlm)
 ! that is not documented in Dave's papers. 
 ! -----------------------------------------------------------------------
 !
