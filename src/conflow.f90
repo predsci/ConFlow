@@ -447,17 +447,23 @@ program conflow
       BAALP3=(el+em+3.)*(el-em+3.)/((2.*el+7.)*(2.*el+5.))
       BAALP4=(el+em+4.)*(el-em+4.)/((2.*el+9.)*(2.*el+7.))
       BAALP5=(el+em+5.)*(el-em+5.)/((2.*el+11.)*(2.*el+9.))
+!      
 ! -----------------------------------------------------------------------
 ! Note (Raphael): It is the couplings below that take into account
 ! the advection equation satisfied by the velocity in presence of 
 ! the Meridional Flow (MF) and Differential Rotation (DR). 
-! These couplings come from the projection of the asso. Legendre Polyn.
-! E.g. their recursion relation eliminate the powers of cos(theta)
-! of the formula of the DR, which is why we do not see them anywhere.  
-! See Appendix of Hathaway et al. (2010). 
-! Without advection by MF and DR, these coupling terms would not exist. 
-! 
 !
+! Here, "Coupling" means that the spectral coefficient for the velocity  
+! components at a given l and m value (Slm and Tlm in Hathaway et al.) 
+! depend spectral coefficient at different l values, up to l+/-6. 
+!
+! These couplings come from the projection and orthoganlity of the 
+! associated Legendre Polynomials "Plm".E.g. their recursion relation 
+! eliminate the powers of cos(theta) of the formula of the DR, which is 
+! why we do not see them anywhere in the algorithm.  
+! Without advection by MF and DR, these coupling terms would not exist. 
+! See Appendix of Hathaway et al. (2010). 
+! 
 ! TODO (Raphael): partial or full derivation of the coupling terms 
 ! that is not documented in Dave's papers. 
 ! -----------------------------------------------------------------------
