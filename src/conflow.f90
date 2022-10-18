@@ -449,29 +449,40 @@ program conflow
       BAALP5=(el+em+5.)*(el-em+5.)/((2.*el+11.)*(2.*el+9.))
 !      
 ! -----------------------------------------------------------------------
-! Note (Raphael): It is the couplings below that take into account
+! Raphael: It is the couplings below that take into account
 ! the advection equation satisfied by the velocity in presence of 
 ! the Meridional Flow (MF) and Differential Rotation (DR). 
 !
 ! Here, "Coupling" means that the spectral coefficient for the velocity  
-! components at a given l and m value (Slm and Tlm in Hathaway et al.) 
+! components at a given l and m value (S_lm and T_lm in Hathaway et al.) 
 ! depend on spectral coefficient at different l values, up to l+/-6. 
 !
 ! These couplings come from the projection and orthoganlity of the 
-! associated Legendre Polynomials "Plm". E.g. their recursion relation 
+! associated Legendre Polynomials "P_lm". E.g. their recursion relation 
 ! eliminate the powers of cos(theta) of the formula of the DR, which is 
 ! why we do not see them anywhere in the algorithm.  
 ! Without advection by MF and DR, these coupling terms would not exist. 
 !
 ! See Appendix of Hathaway et al. (2010). However, only the details for 
-! the radial component (Rlm) of the velocity are explicited. 
+! the radial component (R_lm) of the velocity are explicited. 
 ! So far, there is no reference showing even a partial derivation of the 
-! couplings for the toroidal and poloidal components (Slm and Tlm). 
+! couplings for the toroidal and poloidal components (S_lm and T_lm). 
 !  
 !
-! TODO (Raphael): partial or full derivation of the coupling terms for 
-! the toroidal and poloidal components (Slm and Tlm)
+! TODO: partial or full derivation of the coupling terms for 
+! the toroidal and poloidal components (S_lm and T_lm)
 ! that is not documented in Dave's papers. 
+!
+! Outcome: Per Dave's explanations, S_lm and T_lm are not following the 
+! the analytical development set by equation (2) and (3) for v_theta
+! and v_phi. Instead, they are assumed to follow the same development
+! as equation (1) for R_lm to keep things simple. 
+! This choice was made as (2) and (3) may not be analytically developed.
+! This sets a possible discrepancy in both
+! the math and the physics of the evolution of horizontal flow field
+! with respect to what equation (2) and (3) otherwise imposes. 
+! The unrealistic network may be a consequence of this simplification. 
+! 
 ! -----------------------------------------------------------------------
 !
 !  Coupling with l+6 component
@@ -645,6 +656,9 @@ program conflow
 !-----------------------------------------------------------------------
 !
 !  Evolve spectral coefficients using 4th order Runga-Kutta
+!
+!  Raphael: In what follows, s and t are the same as S_lm and T_lm 
+!  in Hathaway 2010. 
 !
 ! Step 1
 !
