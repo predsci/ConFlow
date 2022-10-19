@@ -1,0 +1,5 @@
+Makefile
+*.h5
+*.csv
+notebooks
+
