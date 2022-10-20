@@ -171,6 +171,9 @@ program conflow
   character(5) :: ext
   character(100) :: path
   character(6) :: velFileNum
+  character(10) :: cmdArg
+!
+  integer :: cmdArgStatus 
 !
   integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
@@ -210,6 +213,20 @@ program conflow
   integer :: seed_n
   integer, allocatable, dimension(:) :: seed_old,seed_new
 !
+!-----------------------------------------------------------------------
+!
+!  Read command line argument(s)
+!
+!-----------------------------------------------------------------------
+  call GET_COMMAND_ARGUMENT(number=1, value=cmdArg, status=cmdArgStatus)
+!
+  if (cmdArgStatus .NE. 0) then
+    write(*,*) 'error with command-line argument(s), stopping.'
+    stop
+  endif 
+  write(*,*)
+  write(*,*) 'cmdArg = ',cmdArg
+  write(*,*)
 !-----------------------------------------------------------------------
 !
 ! ****** Start wall clock timer.
