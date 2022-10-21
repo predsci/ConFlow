@@ -171,9 +171,9 @@ program conflow
   character(5) :: ext
   character(100) :: path
   character(6) :: velFileNum
-  character(10) :: cmdArg
+  character(10) :: gridArg
 !
-  integer :: cmdArgStatus 
+  integer :: gridArgStatus 
 !
   integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
@@ -218,15 +218,24 @@ program conflow
 !  Read command line argument(s)
 !
 !-----------------------------------------------------------------------
-  call GET_COMMAND_ARGUMENT(number=1, value=cmdArg, status=cmdArgStatus)
+  call GET_COMMAND_ARGUMENT(number=1, value=gridArg, status=gridArgStatus)
 !
-  if (cmdArgStatus .NE. 0) then
-    write(*,*) 'error with command-line argument(s), stopping.'
+  write(*,*)
+  write(*,*) 'gridArgStatus = ',gridArgStatus
+  if (gridArgStatus .eq. -1) then
+    write(*,*) 'command-line grid argument too long. stopping.'
+  else if (gridArgStatus .gt. 0) then
+    write(*,*) 'Missing grid arg. Default to staggered grid'
+    gridArg='stag'
+  else
+    write(*,*) 'Will use grid argument gridArg = ', gridArg
+  end if 
+!
+  if (gridArg .ne. 'stag' .AND. gridArg .ne. 'nonstag') then 
+    write(*,*) 'command-line grid argument can only be stag (default) or nonstag. stopping'
     stop
-  endif 
-  write(*,*)
-  write(*,*) 'cmdArg = ',cmdArg
-  write(*,*)
+  end if 
+  
 !-----------------------------------------------------------------------
 !
 ! ****** Start wall clock timer.
@@ -1203,9 +1212,26 @@ program conflow
 !                                                                     
 !-----------------------------------------------------------------------
 !
-! ****** Interpolate ConFlow flows into PSI grid flow arrays.
-!
     wt1 = wtime()
+!   
+    if (gridArg .eq. 'nonstag') then ! start of i/o block
+      write(velFileNum, '(i0.6)') ifile
+      fname='vp' // velFileNum
+      open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
+        do j=1,nl
+          write(1,rec=j) (u(i,j),i=1,nphi)
+        end do
+      close(1)
+!
+      fname='vt' // velFileNum
+      open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
+        do j=1,nl
+          write(1,rec=j) (v(i,j),i=1,nphi)
+        enddo
+      close(1)
+    else 
+!
+! ****** Interpolate ConFlow flows into PSI grid flow arrays.
 !
 ! ****** VT (NT,NPM) ******
 !
@@ -1290,6 +1316,7 @@ program conflow
     write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
     write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
     flush(OUTPUT_UNIT)
+    end if ! end of i/o block
 !
     wtime_io = wtime_io + (wtime() - wt1)
 !

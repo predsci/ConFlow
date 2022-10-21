@@ -4,3 +4,5 @@ Makefile
 notebooks
 *.data
 src/Makefile
+conflow
+
