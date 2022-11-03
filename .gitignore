@@ -1,8 +1,6 @@
 Makefile
 *.h5
 *.csv
-notebooks
 *.data
-src/Makefile
 conflow
 

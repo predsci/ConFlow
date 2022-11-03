@@ -1,10 +1,10 @@
 FC = gfortran
 
-FFLAGS = -O3 -march=native -ftree-parallelize-loops=${OMP_NUM_THREADS} -Wall -Wextra -I/opt/psi/gnu/ext_deps/deps/hdf5/include
+FFLAGS = -O3 -march=native -Wall -Wextra -I/usr/include/hdf5/serial
 
 OBJS = number_types.o plmcoef.o plm.o four1.o psi_io_h5.o zm_parse.o conflow.o
 
-LDFLAGS = -L/opt/psi/gnu/ext_deps/deps/hdf5/lib -lhdf5_fortran -lhdf5hl_fortran -lhdf5 -lhdf5_hl
+LDFLAGS = -L/usr/lib/x86_64-linux-gnu -lhdf5_serial_fortran -lhdf5_serialhl_fortran -lhdf5_serial -lhdf5_serial_hl
 
 all: $(OBJS)
 	$(FC) $(FFLAGS) $(OBJS) $(LDFLAGS) -o conflow
