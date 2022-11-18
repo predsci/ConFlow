@@ -3,4 +3,4 @@ Makefile
 *.csv
 *.data
 conflow
-
+.idea/
