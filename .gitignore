@@ -4,3 +4,4 @@ Makefile
 *.data
 conflow
 .idea/
+.ipynb_checkpoints/
