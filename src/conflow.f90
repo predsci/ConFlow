@@ -231,8 +231,8 @@ program conflow
     write(*,*) 'Will use grid argument gridArg = ', gridArg
   end if 
 !
-  if (gridArg .ne. 'stag' .AND. gridArg .ne. 'nonstag') then 
-    write(*,*) 'command-line grid argument can only be stag (default) or nonstag. stopping'
+  if (trim(gridArg) .ne. 'stag' .AND. trim(gridArg) .ne. 'nonstag' .AND. trim(gridArg) .ne. 'both') then 
+    write(*,*) 'command-line grid argument can only be "stag" (default), "nonstag" or "both". stopping'
     stop
   end if 
   
@@ -1214,7 +1214,7 @@ program conflow
 !
     wt1 = wtime()
 !   
-    if (gridArg .eq. 'nonstag') then ! start of i/o block
+    if (trim(gridArg) == 'nonstag' .OR. trim(gridArg) == 'both') then ! start of i/o block
       write(velFileNum, '(i0.6)') ifile
       fname='vp' // velFileNum
       open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
@@ -1229,7 +1229,7 @@ program conflow
           write(1,rec=j) (v(i,j),i=1,nphi)
         enddo
       close(1)
-    else 
+    else if (trim(gridArg) == 'stag' .OR. trim(gridArg) == 'both') then 
 !
 ! ****** Interpolate ConFlow flows into PSI grid flow arrays.
 !
