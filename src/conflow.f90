@@ -1229,7 +1229,9 @@ program conflow
           write(1,rec=j) (v(i,j),i=1,nphi)
         enddo
       close(1)
-    else if (trim(gridArg) == 'stag' .OR. trim(gridArg) == 'both') then 
+    end if ! end of Dave's i/o block
+    
+    if (trim(gridArg) == 'stag' .OR. trim(gridArg) == 'both') then 
 !
 ! ****** Interpolate ConFlow flows into PSI grid flow arrays.
 !
@@ -1238,85 +1240,85 @@ program conflow
 ! ****** Set up v_ext for vt.
 ! ****** Since "v" is in latitude, need to flip theta axis in the process.
 !
-    do ii=2,nphi+1
-      do jj=2,nl+1
-        v_ext(ii,jj) = v(ii-1,nl+1-(jj-1))
+      do ii=2,nphi+1
+        do jj=2,nl+1
+          v_ext(ii,jj) = v(ii-1,nl+1-(jj-1))
+        enddo
       enddo
-    enddo
-!
-! ****** Set "past the pole" values:
-!
-    pole = SUM(v_ext(2:nphi+1,2))/nphi
-    v_ext(:,1) = two*pole - v_ext(:,2)
-    pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
-    v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+  !
+  ! ****** Set "past the pole" values:
+  !
+      pole = SUM(v_ext(2:nphi+1,2))/nphi
+      v_ext(:,1) = two*pole - v_ext(:,2)
+      pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
+      v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+  !
+  ! ****** Set periodicity:
+  !
+      v_ext(1,:) = v_ext(nphi+1,:)
+      v_ext(nphi+2,:) = v_ext(2,:)
+  !
+  ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
+  !
+      call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+                     nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
+  !
+  ! ****** Now set poles for PSI vt:
+  !
+      pole = SUM(vt_psi(1:nphi-1,2))/(nphi-1)
+      vt_psi(:,1) = two*pole - vt_psi(:,2)
+      pole = SUM(vt_psi(1:nphi-1,nl))/(nphi-1)
+      vt_psi(:,nl+1) = two*pole - vt_psi(:,nl)
+  !
+  ! ****** VP (NTM,NP) ******
+  !
+  ! ****** Set up v_ext for vp:
+  ! ****** Since "u" is in latitude, need to flip theta axis in the process.
+  !
+      do ii=2,nphi+1
+        do jj=2,nl+1
+          v_ext(ii,jj) = u(ii-1,nl+1-(jj-1))
+        enddo
+      enddo
+  !
+  ! ****** Set "past the pole" values:
+  !
+      pole = SUM(v_ext(2:nphi+1,2))/nphi
+      v_ext(:,1) = two*pole - v_ext(:,2)
+      pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
+      v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
 !
 ! ****** Set periodicity:
 !
-    v_ext(1,:) = v_ext(nphi+1,:)
-    v_ext(nphi+2,:) = v_ext(2,:)
-!
-! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
-!
-    call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-                   nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
-!
-! ****** Now set poles for PSI vt:
-!
-    pole = SUM(vt_psi(1:nphi-1,2))/(nphi-1)
-    vt_psi(:,1) = two*pole - vt_psi(:,2)
-    pole = SUM(vt_psi(1:nphi-1,nl))/(nphi-1)
-    vt_psi(:,nl+1) = two*pole - vt_psi(:,nl)
-!
-! ****** VP (NTM,NP) ******
-!
-! ****** Set up v_ext for vp:
-! ****** Since "u" is in latitude, need to flip theta axis in the process.
-!
-    do ii=2,nphi+1
-      do jj=2,nl+1
-        v_ext(ii,jj) = u(ii-1,nl+1-(jj-1))
-      enddo
-    enddo
-!
-! ****** Set "past the pole" values:
-!
-    pole = SUM(v_ext(2:nphi+1,2))/nphi
-    v_ext(:,1) = two*pole - v_ext(:,2)
-    pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
-    v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
-!
-! ****** Set periodicity:
-!
-    v_ext(1,:) = v_ext(nphi+1,:)
-    v_ext(nphi+2,:) = v_ext(2,:)
-!
-! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
-!
-    call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-                   nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
-!
-! ****** Now set periodicity for vp:
-!
-    vp_psi(1,:) = vp_psi(nphi,:)
-    vp_psi(nphi+1,:) = vp_psi(2,:)
-!
-    write(velFileNum, '(i0.6)') ifile
-!
-    call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl+1,vt_psi,p_main,t_half,ierr)
-    call write_2d_file ('vp'//velFileNum//'.h5',nphi+1,nl,vp_psi,p_half,t_main,ierr)
-!
-    call ffopen (12,'flow_output_list.csv','a',ierr)
-    write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
-                              trim('vt'//velFileNum//'.h5'),',', &
-                              trim('vp'//velFileNum//'.h5')
-    close(12)
-!
-    write(*,*) 'Completed step ',ifile,' of ', nfiles
-    write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
-    write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
-    flush(OUTPUT_UNIT)
-    end if ! end of i/o block
+      v_ext(1,:) = v_ext(nphi+1,:)
+      v_ext(nphi+2,:) = v_ext(2,:)
+  !
+  ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
+  !
+      call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+                     nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
+  !
+  ! ****** Now set periodicity for vp:
+  !
+      vp_psi(1,:) = vp_psi(nphi,:)
+      vp_psi(nphi+1,:) = vp_psi(2,:)
+  !
+      write(velFileNum, '(i0.6)') ifile
+  !
+      call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl+1,vt_psi,p_main,t_half,ierr)
+      call write_2d_file ('vp'//velFileNum//'.h5',nphi+1,nl,vp_psi,p_half,t_main,ierr)
+  !
+      call ffopen (12,'flow_output_list.csv','a',ierr)
+      write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
+                                trim('vt'//velFileNum//'.h5'),',', &
+                                trim('vp'//velFileNum//'.h5')
+      close(12)
+  !
+      write(*,*) 'Completed step ',ifile,' of ', nfiles
+      write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
+      write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
+      flush(OUTPUT_UNIT)
+    end if ! end of PSI i/o block
 !
     wtime_io = wtime_io + (wtime() - wt1)
 !
