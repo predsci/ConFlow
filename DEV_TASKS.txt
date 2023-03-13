@@ -7,7 +7,7 @@ Developer tasks for ConFlow
  - Add scripts to automatically plot velocities, clean up a run, etc.
 
  - Add options for resolution:
-   - output resolution nt x np
+   - resolution nt x np (requires changing static arrays into allocatables)
    - type of grid (current AFT-style or PSI-style)
 
  - Go through code and make it conform to decided on style guide

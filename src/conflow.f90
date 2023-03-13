@@ -323,10 +323,10 @@ program conflow
   do i=1,nphi+1
     p_half(i) = -half*dphi_psi+(i-1)*dphi_psi
   enddo
-  do i=1,512
+  do i=1,nl
     t_main(i) = (i-1)*dtheta_psi
   enddo
-  do i=1,513
+  do i=1,nl+1
     t_half(i) = -half*dtheta_psi + (i-1)*dtheta_psi
   enddo
   print*,p_main(1),t_main(1),p_main(nphi),t_main(nl)
