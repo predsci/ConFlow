@@ -164,10 +164,13 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
-  integer,parameter :: nl=512
-  integer,parameter :: nphi=1024
+  integer,parameter :: nl=1024 !512
+  integer,parameter :: nphi=2048 !1024
+!
+  real(r_typ), parameter :: nl_r = 1024_r_typ !512_r_typ
 !
   character(8) :: fname
+  characater(3):: stfname
   character(5) :: ext
   character(100) :: path
   character(6) :: velFileNum
@@ -250,6 +253,7 @@ program conflow
 !
   path= './'
   fname=' '
+  stfname='  '
   ext='.data'
   lenPath=len(trim(path))
 !
@@ -349,10 +353,10 @@ program conflow
   do i=1,nphi+1
     p_half(i) = -half*dphi_psi+(i-1)*dphi_psi
   enddo
-  do i=1,512
+  do i=1,nl
     t_main(i) = (i-1)*dtheta_psi
   enddo
-  do i=1,513
+  do i=1,nl+1
     t_half(i) = -half*dtheta_psi + (i-1)*dtheta_psi
   enddo
   print*,p_main(1),t_main(1),p_main(nphi),t_main(nl)
@@ -409,10 +413,12 @@ program conflow
   do l=1,lmax
     l1=l+1
     el=real(l,r_typ)
+! From Raphael: Hathaway's Spectrum inconsistent with Hathaway et al. 2010 and earlier. 
     amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
     amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
     taper=1.0
-    if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(512.0_r_typ-384.0_r_typ)))
+    if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(nl_r-384.0_r_typ)))
+    !if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(nl_r-384.0_r_typ)))
     amp2 = taper*amp2
     amp3 = taper*amp3
     do m=1,l
@@ -433,6 +439,16 @@ program conflow
   end do
   write(*,*)
   write(*,*) 'Velocity spectrum calculated'
+!
+! [Raphael] Write spectrum on file
+!
+  stfname='Slm'
+  open(unit=1,file=path(1:lenPath) // stfname // ext,access='direct',status='unknown',recl=8*nl)
+    do m=1,nl
+      write(1,rec=m) (s(l,m),l=1,nl)
+    end do
+  close(1)
+!
 !-----------------------------------------------------------------------
 !
 ! Coupling Coefficients
@@ -1230,7 +1246,7 @@ program conflow
         enddo
       close(1)
     end if ! end of Dave's i/o block
-    
+
     if (trim(gridArg) == 'stag' .OR. trim(gridArg) == 'both') then 
 !
 ! ****** Interpolate ConFlow flows into PSI grid flow arrays.
