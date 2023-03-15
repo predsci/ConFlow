@@ -170,7 +170,7 @@ program conflow
   real(r_typ), parameter :: nl_r = 1024_r_typ !512_r_typ
 !
   character(8) :: fname
-  characater(3):: stfname
+  character(3):: stfname
   character(5) :: ext
   character(100) :: path
   character(6) :: velFileNum
@@ -437,17 +437,17 @@ program conflow
       t(l1,m1)=randamp*amp3*arg
     end do
   end do
-  write(*,*)
-  write(*,*) 'Velocity spectrum calculated'
 !
 ! [Raphael] Write spectrum on file
 !
   stfname='Slm'
   open(unit=1,file=path(1:lenPath) // stfname // ext,access='direct',status='unknown',recl=8*nl)
     do m=1,nl
-      write(1,rec=m) (s(l,m),l=1,nl)
+      write(1,rec=m) (ABS(s(l,m)),l=1,nl)
     end do
   close(1)
+  write(*,*)
+  write(*,*) 'Velocity spectrum calculated'
 !
 !-----------------------------------------------------------------------
 !
