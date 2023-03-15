@@ -167,7 +167,7 @@ program conflow
   integer,parameter :: nl=1024 !512
   integer,parameter :: nphi=2048 !1024
 !
-  real(r_typ), parameter :: nl_r = 1024_r_typ !512_r_typ
+  real(r_typ) :: nl_r = real(nl,r_typ) 
 !
   character(8) :: fname
   character(3):: stfname
@@ -180,6 +180,10 @@ program conflow
 !
   integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
+!
+  integer :: taper_l
+!
+  real(r_typ):: taper_l_r
 !
   real(r_typ) :: root3,root5,root7,root9
   real(r_typ) :: rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
@@ -259,6 +263,10 @@ program conflow
 !
   lmax=nl-1
   nlhalf=nl/2
+!
+! ***** Taper index
+  taper_l = 150! 384
+  taper_l_r = real(taper_l,r_typ)
 !
 ! ****** Initialize random number generator.
 ! ****** Set a specific seed for reproducibility.
@@ -414,11 +422,13 @@ program conflow
     l1=l+1
     el=real(l,r_typ)
 ! From Raphael: Hathaway's Spectrum inconsistent with Hathaway et al. 2010 and earlier. 
-    amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
-    amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
+    ! amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
+    amp2 = 0.08*(1. - tanh(el/100.))
+    ! amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
+    amp3 = 1.5*(1. - 0.5*sqrt(el/100.))/el
     taper=1.0
-    if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(nl_r-384.0_r_typ)))
-    !if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(nl_r-384.0_r_typ)))
+    ! if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(nl_r-384.0_r_typ)))
+    if (l .gt. taper_l) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-taper_l_r)/(nl_r-taper_l_r)))
     amp2 = taper*amp2
     amp3 = taper*amp3
     do m=1,l
