@@ -166,6 +166,8 @@ program conflow
 !
   integer,parameter :: nl=1024 !512
   integer,parameter :: nphi=2048 !1024
+  integer,parameter :: nphi_psi=1024
+  integer,parameter :: nl_psi=512
 !
   real(r_typ) :: nl_r = real(nl,r_typ) 
 !
@@ -342,33 +344,37 @@ program conflow
 !
 ! ***** Allocate psi output arrays.
 !
-  allocate (vt_psi(nphi,nl+1))
-  allocate (vp_psi(nphi+1,nl))
+  ! allocate (vt_psi(nphi,nl+1))
+  ! allocate (vp_psi(nphi+1,nl))
+  allocate (vt_psi(nphi_psi,nl_psi+1))
+  allocate (vp_psi(nphi_psi+1,nl_psi))
 !
 ! ****** Set PSI meshes.
 !
-  allocate (p_main(nphi))
-  allocate (p_half(nphi+1))
-  allocate (t_main(nl))
-  allocate (t_half(nl+1))
+  allocate (p_main(nphi_psi))
+  allocate (p_half(nphi_psi+1))
+  allocate (t_main(nl_psi))
+  allocate (t_half(nl_psi+1))
 !
-  dphi_psi = twopi/(nphi-1)
-  dtheta_psi = pi/(nl-1)
+  ! dphi_psi = twopi/(nphi-1)
+  ! dtheta_psi = pi/(nl-1)
+  dphi_psi = twopi/(nphi_psi-1)
+  dtheta_psi = pi/(nl_psi-1)
 !
-  do i=1,nphi
+  do i=1,nphi_psi
     p_main(i) = (i-1)*dphi_psi
   enddo
-  do i=1,nphi+1
+  do i=1,nphi_psi+1
     p_half(i) = -half*dphi_psi+(i-1)*dphi_psi
   enddo
-  do i=1,nl
+  do i=1,nl_psi
     t_main(i) = (i-1)*dtheta_psi
   enddo
-  do i=1,nl+1
+  do i=1,nl_psi+1
     t_half(i) = -half*dtheta_psi + (i-1)*dtheta_psi
   enddo
-  print*,p_main(1),t_main(1),p_main(nphi),t_main(nl)
-  print*,p_half(1),t_half(1),p_half(nphi+1),t_half(nl+1)
+  print*,p_main(1),t_main(1),p_main(nphi_psi),t_main(nl_psi)
+  print*,p_half(1),t_half(1),p_half(nphi_psi+1),t_half(nl_psi+1)
 !
 !-----------------------------------------------------------------------
 !                                                                      
@@ -1286,15 +1292,17 @@ program conflow
   !
   ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
   !
-      call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-                     nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
+      ! call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+      !                nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
+  !
+      vt_psi(1:nphi_psi, 2:nl_psi) = v_ext(1:nphi:2,2:nl-2:2)
   !
   ! ****** Now set poles for PSI vt:
   !
-      pole = SUM(vt_psi(1:nphi-1,2))/(nphi-1)
+      pole = SUM(vt_psi(1:nphi_psi-1,2))/(nphi_psi-1)
       vt_psi(:,1) = two*pole - vt_psi(:,2)
-      pole = SUM(vt_psi(1:nphi-1,nl))/(nphi-1)
-      vt_psi(:,nl+1) = two*pole - vt_psi(:,nl)
+      pole = SUM(vt_psi(1:nphi_psi-1,nl_psi))/(nphi_psi-1)
+      vt_psi(:,nl_psi+1) = two*pole - vt_psi(:,nl_psi)
   !
   ! ****** VP (NTM,NP) ******
   !
@@ -1321,18 +1329,20 @@ program conflow
   !
   ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
   !
-      call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-                     nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
+      ! call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+      !                nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
+  !
+      vp_psi(2:nphi_psi,1:nl_psi) = v_ext(2:nphi-2:2,1:nl:2)
   !
   ! ****** Now set periodicity for vp:
   !
-      vp_psi(1,:) = vp_psi(nphi,:)
-      vp_psi(nphi+1,:) = vp_psi(2,:)
+      vp_psi(1,:) = vp_psi(nphi_psi,:)
+      vp_psi(nphi_psi+1,:) = vp_psi(2,:)
   !
       write(velFileNum, '(i0.6)') ifile
   !
-      call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl+1,vt_psi,p_main,t_half,ierr)
-      call write_2d_file ('vp'//velFileNum//'.h5',nphi+1,nl,vp_psi,p_half,t_main,ierr)
+      call write_2d_file ('vt'//velFileNum//'.h5',nphi_psi,nl_psi+1,vt_psi,p_main,t_half,ierr)
+      call write_2d_file ('vp'//velFileNum//'.h5',nphi_psi+1,nl_psi,vp_psi,p_half,t_main,ierr)
   !
       call ffopen (12,'flow_output_list.csv','a',ierr)
       write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
