@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.5.1'
-      character(*), parameter :: cdate='07/19/2022'
+      character(*), parameter :: cvers='0.6.0'
+      character(*), parameter :: cdate='03/17/2023'
 !
 end module
 !#######################################################################
@@ -164,16 +164,28 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
-  integer,parameter :: nl=512
-  integer,parameter :: nphi=1024
+  integer,parameter :: nl=1024 !512
+  integer,parameter :: nphi=2048 !1024
+  integer,parameter :: nphi_psi=1024
+  integer,parameter :: nl_psi=512
+!
+  real(r_typ) :: nl_r = real(nl,r_typ) 
 !
   character(8) :: fname
+  character(3):: stfname
   character(5) :: ext
   character(100) :: path
   character(6) :: velFileNum
+  character(10) :: gridArg
+!
+  integer :: gridArgStatus 
 !
   integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
   integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
+!
+  integer :: taper_l
+!
+  real(r_typ):: taper_l_r
 !
   real(r_typ) :: root3,root5,root7,root9
   real(r_typ) :: rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
@@ -212,6 +224,29 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
+!  Read command line argument(s)
+!
+!-----------------------------------------------------------------------
+  call GET_COMMAND_ARGUMENT(number=1, value=gridArg, status=gridArgStatus)
+!
+  write(*,*)
+  write(*,*) 'gridArgStatus = ',gridArgStatus
+  if (gridArgStatus .eq. -1) then
+    write(*,*) 'command-line grid argument too long. stopping.'
+  else if (gridArgStatus .gt. 0) then
+    write(*,*) 'Missing grid arg. Default to staggered grid'
+    gridArg='stag'
+  else
+    write(*,*) 'Will use grid argument gridArg = ', gridArg
+  end if 
+!
+  if (trim(gridArg) .ne. 'stag' .AND. trim(gridArg) .ne. 'nonstag' .AND. trim(gridArg) .ne. 'both') then 
+    write(*,*) 'command-line grid argument can only be "stag" (default), "nonstag" or "both". stopping'
+    stop
+  end if 
+  
+!-----------------------------------------------------------------------
+!
 ! ****** Start wall clock timer.
 !
   wtime_tmp = wtime()
@@ -224,11 +259,16 @@ program conflow
 !
   path= './'
   fname=' '
+  stfname='  '
   ext='.data'
   lenPath=len(trim(path))
 !
   lmax=nl-1
   nlhalf=nl/2
+!
+! ***** Taper index
+  taper_l = 200
+  taper_l_r = real(taper_l,r_typ)
 !
 ! ****** Initialize random number generator.
 ! ****** Set a specific seed for reproducibility.
@@ -304,33 +344,37 @@ program conflow
 !
 ! ***** Allocate psi output arrays.
 !
-  allocate (vt_psi(nphi,nl+1))
-  allocate (vp_psi(nphi+1,nl))
+  ! allocate (vt_psi(nphi,nl+1))
+  ! allocate (vp_psi(nphi+1,nl))
+  allocate (vt_psi(nphi_psi,nl_psi+1))
+  allocate (vp_psi(nphi_psi+1,nl_psi))
 !
 ! ****** Set PSI meshes.
 !
-  allocate (p_main(nphi))
-  allocate (p_half(nphi+1))
-  allocate (t_main(nl))
-  allocate (t_half(nl+1))
+  allocate (p_main(nphi_psi))
+  allocate (p_half(nphi_psi+1))
+  allocate (t_main(nl_psi))
+  allocate (t_half(nl_psi+1))
 !
-  dphi_psi = twopi/(nphi-1)
-  dtheta_psi = pi/(nl-1)
+  ! dphi_psi = twopi/(nphi-1)
+  ! dtheta_psi = pi/(nl-1)
+  dphi_psi = twopi/(nphi_psi-1)
+  dtheta_psi = pi/(nl_psi-1)
 !
-  do i=1,nphi
+  do i=1,nphi_psi
     p_main(i) = (i-1)*dphi_psi
   enddo
-  do i=1,nphi+1
+  do i=1,nphi_psi+1
     p_half(i) = -half*dphi_psi+(i-1)*dphi_psi
   enddo
-  do i=1,nl
+  do i=1,nl_psi
     t_main(i) = (i-1)*dtheta_psi
   enddo
-  do i=1,nl+1
+  do i=1,nl_psi+1
     t_half(i) = -half*dtheta_psi + (i-1)*dtheta_psi
   enddo
-  print*,p_main(1),t_main(1),p_main(nphi),t_main(nl)
-  print*,p_half(1),t_half(1),p_half(nphi+1),t_half(nl+1)
+  print*,p_main(1),t_main(1),p_main(nphi_psi),t_main(nl_psi)
+  print*,p_half(1),t_half(1),p_half(nphi_psi+1),t_half(nl_psi+1)
 !
 !-----------------------------------------------------------------------
 !                                                                      
@@ -383,10 +427,14 @@ program conflow
   do l=1,lmax
     l1=l+1
     el=real(l,r_typ)
-    amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
+! From Raphael: Hathaway's Spectrum inconsistent with Hathaway et al. 2010 and earlier. 
+    ! amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
+    amp2 = 0.08*(1. - tanh(el/300.))
     amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
-    taper=1.0
-    if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(512.0_r_typ-384.0_r_typ)))
+    ! taper=1.0
+    ! if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(512-384.0_r_typ)))
+    taper=0.5_r_typ*(1.0_r_typ + cos(pi*el/taper_l_r))
+    if (l .gt. taper_l) taper = 0.0_r_typ
     amp2 = taper*amp2
     amp3 = taper*amp3
     do m=1,l
@@ -405,8 +453,18 @@ program conflow
       t(l1,m1)=randamp*amp3*arg
     end do
   end do
+!
+! [Raphael] Write spectrum on file
+!
+  stfname='Slm'
+  open(unit=1,file=path(1:lenPath) // stfname // ext,access='direct',status='unknown',recl=8*nl)
+    do m=1,nl
+      write(1,rec=m) (ABS(s(l,m)),l=1,nl)
+    end do
+  close(1)
   write(*,*)
   write(*,*) 'Velocity spectrum calculated'
+!
 !-----------------------------------------------------------------------
 !
 ! Coupling Coefficients
@@ -1186,93 +1244,117 @@ program conflow
 !                                                                     
 !-----------------------------------------------------------------------
 !
-! ****** Interpolate ConFlow flows into PSI grid flow arrays.
-!
     wt1 = wtime()
+!   
+    if (trim(gridArg) == 'nonstag' .OR. trim(gridArg) == 'both') then ! start of i/o block
+      write(velFileNum, '(i0.6)') ifile
+      fname='vp' // velFileNum
+      open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
+        do j=1,nl
+          write(1,rec=j) (u(i,j),i=1,nphi)
+        end do
+      close(1)
+!
+      fname='vt' // velFileNum
+      open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
+        do j=1,nl
+          write(1,rec=j) (v(i,j),i=1,nphi)
+        enddo
+      close(1)
+    end if ! end of Dave's i/o block
+
+    if (trim(gridArg) == 'stag' .OR. trim(gridArg) == 'both') then 
+!
+! ****** Interpolate ConFlow flows into PSI grid flow arrays.
 !
 ! ****** VT (NT,NPM) ******
 !
 ! ****** Set up v_ext for vt.
 ! ****** Since "v" is in latitude, need to flip theta axis in the process.
 !
-    do ii=2,nphi+1
-      do jj=2,nl+1
-        v_ext(ii,jj) = v(ii-1,nl+1-(jj-1))
+      do ii=2,nphi+1
+        do jj=2,nl+1
+          v_ext(ii,jj) = v(ii-1,nl+1-(jj-1))
+        enddo
       enddo
-    enddo
-!
-! ****** Set "past the pole" values:
-!
-    pole = SUM(v_ext(2:nphi+1,2))/nphi
-    v_ext(:,1) = two*pole - v_ext(:,2)
-    pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
-    v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+  !
+  ! ****** Set "past the pole" values:
+  !
+      pole = SUM(v_ext(2:nphi+1,2))/nphi
+      v_ext(:,1) = two*pole - v_ext(:,2)
+      pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
+      v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+  !
+  ! ****** Set periodicity:
+  !
+      v_ext(1,:) = v_ext(nphi+1,:)
+      v_ext(nphi+2,:) = v_ext(2,:)
+  !
+  ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
+  !
+      ! call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+      !                nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
+  !
+      vt_psi(1:nphi_psi, 2:nl_psi) = v_ext(1:nphi:2,2:nl-2:2)
+  !
+  ! ****** Now set poles for PSI vt:
+  !
+      pole = SUM(vt_psi(1:nphi_psi-1,2))/(nphi_psi-1)
+      vt_psi(:,1) = two*pole - vt_psi(:,2)
+      pole = SUM(vt_psi(1:nphi_psi-1,nl_psi))/(nphi_psi-1)
+      vt_psi(:,nl_psi+1) = two*pole - vt_psi(:,nl_psi)
+  !
+  ! ****** VP (NTM,NP) ******
+  !
+  ! ****** Set up v_ext for vp:
+  ! ****** Since "u" is in latitude, need to flip theta axis in the process.
+  !
+      do ii=2,nphi+1
+        do jj=2,nl+1
+          v_ext(ii,jj) = u(ii-1,nl+1-(jj-1))
+        enddo
+      enddo
+  !
+  ! ****** Set "past the pole" values:
+  !
+      pole = SUM(v_ext(2:nphi+1,2))/nphi
+      v_ext(:,1) = two*pole - v_ext(:,2)
+      pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
+      v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
 !
 ! ****** Set periodicity:
 !
-    v_ext(1,:) = v_ext(nphi+1,:)
-    v_ext(nphi+2,:) = v_ext(2,:)
-!
-! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
-!
-    call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-                   nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
-!
-! ****** Now set poles for PSI vt:
-!
-    pole = SUM(vt_psi(1:nphi-1,2))/(nphi-1)
-    vt_psi(:,1) = two*pole - vt_psi(:,2)
-    pole = SUM(vt_psi(1:nphi-1,nl))/(nphi-1)
-    vt_psi(:,nl+1) = two*pole - vt_psi(:,nl)
-!
-! ****** VP (NTM,NP) ******
-!
-! ****** Set up v_ext for vp:
-! ****** Since "u" is in latitude, need to flip theta axis in the process.
-!
-    do ii=2,nphi+1
-      do jj=2,nl+1
-        v_ext(ii,jj) = u(ii-1,nl+1-(jj-1))
-      enddo
-    enddo
-!
-! ****** Set "past the pole" values:
-!
-    pole = SUM(v_ext(2:nphi+1,2))/nphi
-    v_ext(:,1) = two*pole - v_ext(:,2)
-    pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
-    v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
-!
-! ****** Set periodicity:
-!
-    v_ext(1,:) = v_ext(nphi+1,:)
-    v_ext(nphi+2,:) = v_ext(2,:)
-!
-! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
-!
-    call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-                   nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
-!
-! ****** Now set periodicity for vp:
-!
-    vp_psi(1,:) = vp_psi(nphi,:)
-    vp_psi(nphi+1,:) = vp_psi(2,:)
-!
-    write(velFileNum, '(i0.6)') ifile
-!
-    call write_2d_file ('vt'//velFileNum//'.h5',nphi,nl+1,vt_psi,p_main,t_half,ierr)
-    call write_2d_file ('vp'//velFileNum//'.h5',nphi+1,nl,vp_psi,p_half,t_main,ierr)
-!
-    call ffopen (12,'flow_output_list.csv','a',ierr)
-    write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
-                              trim('vt'//velFileNum//'.h5'),',', &
-                              trim('vp'//velFileNum//'.h5')
-    close(12)
-!
-    write(*,*) 'Completed step ',ifile,' of ', nfiles
-    write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
-    write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
-    flush(OUTPUT_UNIT)
+      v_ext(1,:) = v_ext(nphi+1,:)
+      v_ext(nphi+2,:) = v_ext(2,:)
+  !
+  ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
+  !
+      ! call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
+      !                nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
+  !
+      vp_psi(2:nphi_psi,1:nl_psi) = v_ext(2:nphi-2:2,1:nl:2)
+  !
+  ! ****** Now set periodicity for vp:
+  !
+      vp_psi(1,:) = vp_psi(nphi_psi,:)
+      vp_psi(nphi_psi+1,:) = vp_psi(2,:)
+  !
+      write(velFileNum, '(i0.6)') ifile
+  !
+      call write_2d_file ('vt'//velFileNum//'.h5',nphi_psi,nl_psi+1,vt_psi,p_main,t_half,ierr)
+      call write_2d_file ('vp'//velFileNum//'.h5',nphi_psi+1,nl_psi,vp_psi,p_half,t_main,ierr)
+  !
+      call ffopen (12,'flow_output_list.csv','a',ierr)
+      write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
+                                trim('vt'//velFileNum//'.h5'),',', &
+                                trim('vp'//velFileNum//'.h5')
+      close(12)
+  !
+      write(*,*) 'Completed step ',ifile,' of ', nfiles
+      write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
+      write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
+      flush(OUTPUT_UNIT)
+    end if ! end of PSI i/o block
 !
     wtime_io = wtime_io + (wtime() - wt1)
 !
@@ -1715,6 +1797,15 @@ end subroutine
 !              colatitude (north to south).
 !   - BUG FIX: u and v were being written to vt and vp instead of vp and vt.
 !
+! 03/17/2023, RA/RC, Version 0.6.0:
+!   - Added command line argument to indicate whether to 
+!     output flows to the original AFT-style grid (nonstag),
+!     the PSI HipFT grid (stag), or both.  
+!     Set the input argument to: stag|nonstag|both
+!   - Changed spectrum in order to have flows
+!     resolved at the 512x1024 resoltion with at least 5 
+!     grid cells for the flow blobs.
+!       
 !-----------------------------------------------------------------------
 !
 !#######################################################################

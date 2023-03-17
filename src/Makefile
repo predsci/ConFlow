@@ -1,6 +1,6 @@
 FC = gfortran
 
-FFLAGS = -O3 -march=native -ftree-parallelize-loops=${OMP_NUM_THREADS} -Wall -Wextra -I/opt/psi/gnu/ext_deps/deps/hdf5/include
+FFLAGS = -O3 -march=native -Wall -Wextra -I/opt/psi/gnu/ext_deps/deps/hdf5/include
 
 OBJS = number_types.o plmcoef.o plm.o four1.o psi_io_h5.o zm_parse.o conflow.o
 
