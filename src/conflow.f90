@@ -267,7 +267,7 @@ program conflow
   nlhalf=nl/2
 !
 ! ***** Taper index
-  taper_l = 150! 384
+  taper_l = 200
   taper_l_r = real(taper_l,r_typ)
 !
 ! ****** Initialize random number generator.
@@ -429,12 +429,12 @@ program conflow
     el=real(l,r_typ)
 ! From Raphael: Hathaway's Spectrum inconsistent with Hathaway et al. 2010 and earlier. 
     ! amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
-    amp2 = 0.08*(1. - tanh(el/100.))
-    ! amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
-    amp3 = 1.5*(1. - 0.5*sqrt(el/100.))/el
-    taper=1.0
-    ! if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(nl_r-384.0_r_typ)))
-    if (l .gt. taper_l) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-taper_l_r)/(nl_r-taper_l_r)))
+    amp2 = 0.08*(1. - tanh(el/300.))
+    amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
+    ! taper=1.0
+    ! if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(512-384.0_r_typ)))
+    taper=0.5_r_typ*(1.0_r_typ + cos(pi*el/taper_l_r))
+    if (l .gt. taper_l) taper = 0.0_r_typ
     amp2 = taper*amp2
     amp3 = taper*amp3
     do m=1,l
