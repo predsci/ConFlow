@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.5.1'
-      character(*), parameter :: cdate='07/19/2022'
+      character(*), parameter :: cvers='0.6.0'
+      character(*), parameter :: cdate='03/17/2023'
 !
 end module
 !#######################################################################
@@ -1797,6 +1797,15 @@ end subroutine
 !              colatitude (north to south).
 !   - BUG FIX: u and v were being written to vt and vp instead of vp and vt.
 !
+! 03/17/2023, RA/RC, Version 0.6.0:
+!   - Added command line argument to indicate whether to 
+!     output flows to the original AFT-style grid (nonstag),
+!     the PSI HipFT grid (stag), or both.  
+!     Set the input argument to: stag|nonstag|both
+!   - Changed spectrum in order to have flows
+!     resolved at the 512x1024 resoltion with at least 5 
+!     grid cells for the flow blobs.
+!       
 !-----------------------------------------------------------------------
 !
 !#######################################################################
