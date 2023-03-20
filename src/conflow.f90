@@ -10,17 +10,17 @@
 !
 ! ****** ConFlow: Super Granular Convective Flow Generator
 !
-!     This program creates 1024 by 512 velocity maps of supergranules
+!     This program creates maps of supergranule flows.
 !     It constructs a spectrum of spherical harmonic amplitudes
-!     s(l,m) and calculates the components of the velocity field at
-!     an array of points in theta=colatitude and phi=longitude.
+!     and calculates the components of the velocity field at
+!     an array of points in theta (colatitude) and phi (longitude).
 !
 !     The velocity vector (u,v) is in the (phi,theta) direction.
 !
-!     The data arrays are written to direct access disk files.
+!     The data arrays are written to files.
 !
 !     Differential rotation is simulated by evolving
-!     the spectral coefficients using 3-coefficient fits
+!     the spectral coefficients using 5-coefficient fits
 !     (North-South symmetric)
 !
 !     Meridional flow is simulated by evolving
@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.6.0'
-      character(*), parameter :: cdate='03/17/2023'
+      character(*), parameter :: cvers='0.7.0'
+      character(*), parameter :: cdate='03/20/2023'
 !
 end module
 !#######################################################################
@@ -70,9 +70,7 @@ module timing
       implicit none
 !
       real(r_typ) :: wtime_tmp = 0.
-!
       real(r_typ) :: wtime_io = 0.
-!
       real(r_typ) :: wtime_total = 0.
 !
 end module
@@ -128,24 +126,78 @@ module constants
       real(r_typ), parameter :: d2r = 0.017453292519943295_r_typ
       real(r_typ), parameter :: r2d = 57.29577951308232_r_typ
 !
-      real(r_typ), parameter :: rsun_cm = 6.96e10_r_typ
-      real(r_typ), parameter :: rsun_cm2 = 4.84416e21_r_typ
+      real(r_typ), parameter :: rSun = 6.96e+08_r_typ
+      real(r_typ), parameter :: day_to_sec = 86400.0_r_typ
 !
-      real(r_typ), parameter :: &
-                         diff_km2_s_to_rs2_s = 2.0643413925221e-12_r_typ
-      real(r_typ), parameter :: &
-                         diff_km2_s_to_rs2_hr = 7.43162901307967e-09_r_typ
-      real(r_typ), parameter :: &
-                         km_s_to_rs_hr = 0.005172413793103448_r_typ
-      real(r_typ), parameter :: &
-                         m_s_to_rs_hr = 5.172413793103448e-06_r_typ
-      real(r_typ), parameter :: &
-                         km_s_to_rs_s = 1.4367816091954023e-06_r_typ
-      real(r_typ), parameter :: output_flux_fac = 1.0e-21_r_typ
+      real(r_typ), parameter :: root3 = sqrt(three)
+      real(r_typ), parameter :: root5 = sqrt(five)
+      real(r_typ), parameter :: root7 = sqrt(seven)
+      real(r_typ), parameter :: root9 = sqrt(nine)
 !
-      real(r_typ), parameter :: small_value = tiny(one)
-      real(r_typ), parameter :: large_value = huge(one)
-      real(r_typ), parameter :: safety = 0.95_r_typ
+      real(r_typ), parameter :: small_value = TINY(one)
+      real(r_typ), parameter :: large_value = HUGE(one)
+!
+end module
+!#######################################################################
+module input_parameters
+!
+!-----------------------------------------------------------------------
+! ****** Input parameters.
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use constants
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      logical :: verbose = .false.
+!
+! ****** Output options.
+!
+      logical :: output_flows_on_uniform_grid = .true.
+      logical :: output_flows_on_staggered_grid = .true.
+      logical :: output_spectrum = .true.
+      character(512) :: output_directory = '.'
+!
+! ****** Resolution.
+!
+      integer :: n_lat = 512
+      integer :: n_long = 1024
+!
+! ****** Time paramters (seconds).
+!
+      real(r_typ) :: tmax = 24*28*3600
+      real(r_typ) :: dtime = fifteen*60.0_r_typ
+!
+! ****** Differential rotation coefficients (m/s).
+!
+      real(r_typ) :: flow_dr_t0 = 46.0_r_typ
+      real(r_typ) :: flow_dr_t1 = zero
+      real(r_typ) :: flow_dr_t2 = -262.0_r_typ
+      real(r_typ) :: flow_dr_t3 = zero
+      real(r_typ) :: flow_dr_t4 = -379.0_r_typ
+!
+! ****** Meridional flow coefficients (m/s).
+!
+      real(r_typ) :: flow_mf_s0 = zero
+      real(r_typ) :: flow_mf_s1 = 22.0_r_typ
+      real(r_typ) :: flow_mf_s2 = zero
+      real(r_typ) :: flow_mf_s3 = 11.0_r_typ
+      real(r_typ) :: flow_mf_s4 = zero
+      real(r_typ) :: flow_mf_s5 = -28.0_r_typ
+!
+! ****** Parameter to taper modes.
+!
+      integer :: taper_l = 200
+!
+! ****** Random seed options.
+!
+      logical :: set_random_seed = .true.
+      integer :: random_seed_value = 12345
 !
 end module
 !#######################################################################
@@ -157,6 +209,7 @@ program conflow
   use timing
   use constants
   use ident
+  use input_parameters
 !
 !-----------------------------------------------------------------------
 !
@@ -164,87 +217,66 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
-  integer,parameter :: nl=1024 !512
-  integer,parameter :: nphi=2048 !1024
-  integer,parameter :: nphi_psi=1024
-  integer,parameter :: nl_psi=512
+! ****** Double resoltution in theta,phi in order to sample at points
+! ****** on PSI staggered grid.
 !
-  real(r_typ) :: nl_r = real(nl,r_typ) 
+  integer :: n_lat_2x, n_long_2x
+  real(r_typ) :: n_lat_2x_real
 !
-  character(8) :: fname
-  character(3):: stfname
-  character(5) :: ext
-  character(100) :: path
-  character(6) :: velFileNum
-  character(10) :: gridArg
-!
-  integer :: gridArgStatus 
-!
-  integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
-  integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
-!
-  integer :: taper_l
+! ****** Taper index.
 !
   real(r_typ):: taper_l_r
 !
-  real(r_typ) :: root3,root5,root7,root9
-  real(r_typ) :: rSun,daySec,deltaT,dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
-  real(r_typ) :: tmax,curr_time
-  real(r_typ) :: s0,s1,s2,s3,s4,s5,t0,t1,t2,t3,t4,el,em,amp2,amp3,randamp,phase,taper,xlifetime
+! ****** Main arrays.
+!
+  real(r_typ), dimension(:), allocatable :: p_main,p_half,t_main,t_half
+  real(r_typ), dimension(:), allocatable :: p_ext,t_ext,p
+  real(r_typ), dimension(:,:), allocatable :: vt_psi,vp_psi,v_ext
+!
+  real(r_typ) :: coefDR(5),coefMF(6)
+!
+  real(r_typ), dimension(:,:), allocatable :: u,v,coef,Omega,MFlow0
+  real(r_typ), dimension(:,:), allocatable :: OmegaM1,OmegaM2,OmegaM3
+  real(r_typ), dimension(:,:), allocatable :: OmegaM4
+  real(r_typ), dimension(:,:), allocatable :: OmegaP1,OmegaP2,OmegaP3
+  real(r_typ), dimension(:,:), allocatable :: OmegaP4
+  real(r_typ), dimension(:,:), allocatable :: MFlowM1,MFlowM2,MFlowM3
+  real(r_typ), dimension(:,:), allocatable :: MFlowM4,MFlowM5,MFlowM6
+  real(r_typ), dimension(:,:), allocatable :: MFlowP1,MFlowP2,MFlowP3
+  real(r_typ), dimension(:,:), allocatable :: MFlowP4,MFlowP5,MFlowP6
+!
+  complex(r_typ), dimension(:,:), allocatable :: s,t
+  real(r_typ), dimension(:), allocatable :: latscale
+  real(r_typ), dimension(:,:), allocatable :: s_abs
+  complex(r_typ), dimension(:,:,:), allocatable :: ds,dt
+  complex(r_typ), dimension(:), allocatable :: unorth,usouth
+  complex(r_typ), dimension(:), allocatable :: vnorth,vsouth
+!
+  character(512) :: fname
+  character(3):: stfname
+  character(5) :: ext='.data'
+  character(100) :: path
+  character(6) :: velFileNum
+!
+  integer, allocatable, dimension(:) :: seed_old,seed_new
+!
+  integer :: seed_n
+  integer :: i,j,l,m,l1,m1,l2,m2,jn,js,ierr,ii,jj
+  integer :: lmax,lenPath,nlhalf,ifile,nfiles,itime
+  complex(r_typ) :: xi,arg,sum1,sum2,sum3,sum4
+!
+  real(r_typ) :: dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
+  real(r_typ) :: curr_time
+  real(r_typ) :: el,em,amp2,amp3,randamp,phase,taper,xlifetime
   real(r_typ) :: elfunc,elfuncMF,DR0,DR1,DR2,DR3,DR4,MF0,MF1,MF2,MF3,MF4,MF5
   real(r_typ) :: BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3,BAALP4,BAALP5
   real(r_typ) :: BAA0,BAA1,BAA2,BAA3,BAA4,BAA5,BAA6
-  real(r_typ) :: u(nphi,nl),v(nphi,nl)
-  real(r_typ) :: coef(nl,nl),p(nl)
-  real(r_typ) :: Omega(nl,nl)
-  real(r_typ) :: OmegaM1(nl,nl),OmegaM2(nl,nl),OmegaM3(nl,nl),OmegaM4(nl,nl)
-  real(r_typ) :: OmegaP1(nl,nl),OmegaP2(nl,nl),OmegaP3(nl,nl),OmegaP4(nl,nl)
-  real(r_typ) :: MFlow0(nl,nl)
-  real(r_typ) :: MFlowM1(nl,nl),MFlowM2(nl,nl),MFlowM3(nl,nl),MFlowM4(nl,nl)
-  real(r_typ) :: MFlowP1(nl,nl),MFlowP2(nl,nl),MFlowP3(nl,nl),MFlowP4(nl,nl)
-  real(r_typ) :: MFlowP5(nl,nl),MFlowM5(nl,nl),MFlowP6(nl,nl),MFlowM6(nl,nl)
-  real(r_typ) :: coefDR(5),coefMF(6)
 !
-  real(r_typ), dimension(:), allocatable :: p_main,p_half,t_main,t_half
-  real(r_typ), dimension(:), allocatable :: p_ext,t_ext
-  real(r_typ), dimension(:,:), allocatable :: vt_psi,vp_psi,v_ext
   real(r_typ) ::  dphi_psi,dtheta_psi,pole
-
+!
   real(r_typ) :: wtime,wt1
   real(r_typ) :: rnd
 !
-  complex(r_typ) :: s(nl,nl),ds(nl,nl,4)
-  complex(r_typ) :: t(nl,nl),dt(nl,nl,4)
-  complex(r_typ) :: xi,arg,sum1,sum2,sum3,sum4
-  complex(r_typ) :: unorth(nphi),usouth(nphi)
-  complex(r_typ) :: vnorth(nphi),vsouth(nphi)
-!
-  integer :: seed_n
-  integer, allocatable, dimension(:) :: seed_old,seed_new
-!
-!-----------------------------------------------------------------------
-!
-!  Read command line argument(s)
-!
-!-----------------------------------------------------------------------
-  call GET_COMMAND_ARGUMENT(number=1, value=gridArg, status=gridArgStatus)
-!
-  write(*,*)
-  write(*,*) 'gridArgStatus = ',gridArgStatus
-  if (gridArgStatus .eq. -1) then
-    write(*,*) 'command-line grid argument too long. stopping.'
-  else if (gridArgStatus .gt. 0) then
-    write(*,*) 'Missing grid arg. Default to staggered grid'
-    gridArg='stag'
-  else
-    write(*,*) 'Will use grid argument gridArg = ', gridArg
-  end if 
-!
-  if (trim(gridArg) .ne. 'stag' .AND. trim(gridArg) .ne. 'nonstag' .AND. trim(gridArg) .ne. 'both') then 
-    write(*,*) 'command-line grid argument can only be "stag" (default), "nonstag" or "both". stopping'
-    stop
-  end if 
-  
 !-----------------------------------------------------------------------
 !
 ! ****** Start wall clock timer.
@@ -253,63 +285,98 @@ program conflow
 !
 !-----------------------------------------------------------------------
 !
+! ****** READ INPUT FILE.
+!
+  call read_input_file
+!
+  n_long_2x = 2*n_long
+  n_lat_2x_real = real(n_lat_2x,r_typ)
+!
+  n_lat_2x = 2*n_lat
+  lmax = n_lat_2x-1
+  nlhalf = n_lat_2x/2
+!
+  taper_l_r = real(taper_l,r_typ)
+!
   write(*,*)
   write(*,*) cname,' v',cvers,' ',cdate
   write(*,*)
 !
-  path= './'
+! ****** Allocate arrays.
+!
+  allocate (p(n_lat_2x))
+  allocate (     u(n_long_2x,n_lat_2x))
+  allocate (     v(n_long_2x,n_lat_2x))
+  allocate (   coef(n_lat_2x,n_lat_2x))
+!
+  allocate (  Omega(n_lat_2x,n_lat_2x))
+  allocate (OmegaM1(n_lat_2x,n_lat_2x))
+  allocate (OmegaM2(n_lat_2x,n_lat_2x))
+  allocate (OmegaM3(n_lat_2x,n_lat_2x))
+  allocate (OmegaM4(n_lat_2x,n_lat_2x))
+!
+  allocate (OmegaP1(n_lat_2x,n_lat_2x))
+  allocate (OmegaP2(n_lat_2x,n_lat_2x))
+  allocate (OmegaP3(n_lat_2x,n_lat_2x))
+  allocate (OmegaP4(n_lat_2x,n_lat_2x))
+!
+  allocate ( MFlow0(n_lat_2x,n_lat_2x))
+  allocate (MFlowM1(n_lat_2x,n_lat_2x))
+  allocate (MFlowM2(n_lat_2x,n_lat_2x))
+  allocate (MFlowM3(n_lat_2x,n_lat_2x))
+  allocate (MFlowM4(n_lat_2x,n_lat_2x))
+  allocate (MFlowM5(n_lat_2x,n_lat_2x))
+  allocate (MFlowM6(n_lat_2x,n_lat_2x))
+!
+  allocate (MFlowP1(n_lat_2x,n_lat_2x))
+  allocate (MFlowP2(n_lat_2x,n_lat_2x))
+  allocate (MFlowP3(n_lat_2x,n_lat_2x))
+  allocate (MFlowP4(n_lat_2x,n_lat_2x))
+  allocate (MFlowP5(n_lat_2x,n_lat_2x))
+  allocate (MFlowP6(n_lat_2x,n_lat_2x))
+!
+  allocate (s(n_lat_2x,n_lat_2x))
+  allocate (ds(n_lat_2x,n_lat_2x,4))
+  allocate (t(n_lat_2x,n_lat_2x))
+  allocate (dt(n_lat_2x,n_lat_2x,4))
+!
+  allocate (unorth(n_long_2x))
+  allocate (usouth(n_long_2x))
+  allocate (vnorth(n_long_2x))
+  allocate (vsouth(n_long_2x))
+!
   fname=' '
   stfname='  '
-  ext='.data'
-  lenPath=len(trim(path))
-!
-  lmax=nl-1
-  nlhalf=nl/2
-!
-! ***** Taper index
-  taper_l = 200
-  taper_l_r = real(taper_l,r_typ)
+  lenPath = len(trim(path))
 !
 ! ****** Initialize random number generator.
-! ****** Set a specific seed for reproducibility.
-! ****** Later this should be made into an option!!!! [RMC]
 !
   call RANDOM_INIT (.true., .true.)
-  call RANDOM_SEED (size=seed_n)
-  allocate (seed_old(seed_n))
-  allocate (seed_new(seed_n))
-  call RANDOM_SEED(get=seed_old)
-  seed_new(:)=12345
-  call RANDOM_SEED(put=seed_new)
+
+  if (set_random_seed) then
+    call RANDOM_SEED (size=seed_n)
+    allocate (seed_old(seed_n))
+    allocate (seed_new(seed_n))
+    call RANDOM_SEED(get=seed_old)
+    seed_new(:)=random_seed_value
+    call RANDOM_SEED(put=seed_new)
+  end if
 !
 !-----------------------------------------------------------------------
-!                                                                     
+!
 !  Numeric constants
-!                                                                      
+!
 !-----------------------------------------------------------------------
-  root3=sqrt(three)
-  root5=sqrt(five)
-  root7=sqrt(seven)
-  root9=sqrt(nine)
   xi=(0.,one)
 !-----------------------------------------------------------------------
-!                                                                      
-!  Physical constants
-!                                                                      
-!-----------------------------------------------------------------------
-  rSun = 6.96e+08_r_typ   ! (meters)
-  daySec = 86400.0_r_typ
-!-----------------------------------------------------------------------
-!                                                                      
+!
 !  Time (seconds) and space (radians) steps
-!                                                                      
+!
 !-----------------------------------------------------------------------
-  deltaT = fifteen*60.0_r_typ
-  tmax = 28*24*3600
   curr_time = 0.
-  nfiles = int(tmax/deltaT)
-  dphi = twopi/nphi
-  dtheta = pi/nl
+  nfiles = int(tmax/dtime)
+  dphi = twopi/n_long_2x
+  dtheta = pi/n_lat_2x
 !
 !-----------------------------------------------------------------------
 !
@@ -328,106 +395,96 @@ program conflow
 !
 ! ****** Set up extended grid for current flows so that half-mesh
 !        dimensions can be interpolated properly.
-  allocate (v_ext(nphi+2,nl+2))
-  allocate (p_ext(nphi+2))
-  allocate (t_ext(nl+2))
+!
+  allocate (v_ext(n_long_2x+2,n_lat_2x+2))
+  allocate (p_ext(n_long_2x+2))
+  allocate (t_ext(n_lat_2x+2))
 !
 ! ****** Set extended ConFlow meshes.
 !
-  do i=1,nphi+2
+  do i=1,n_long_2x+2
     p_ext(i) = -half*dphi + (i-1)*dphi
   enddo
-  do i=1,nl+2
+  do i=1,n_lat_2x+2
     t_ext(i) = -half*dtheta + (i-1)*dtheta
   enddo
-  print*,p_ext(1),t_ext(1),p_ext(nphi+2),t_ext(nl+2)
+  print*,p_ext(1),t_ext(1),p_ext(n_long_2x+2),t_ext(n_lat_2x+2)
 !
 ! ***** Allocate psi output arrays.
 !
-  ! allocate (vt_psi(nphi,nl+1))
-  ! allocate (vp_psi(nphi+1,nl))
-  allocate (vt_psi(nphi_psi,nl_psi+1))
-  allocate (vp_psi(nphi_psi+1,nl_psi))
+  allocate (vt_psi(n_long,n_lat+1))
+  allocate (vp_psi(n_long+1,n_lat))
 !
 ! ****** Set PSI meshes.
 !
-  allocate (p_main(nphi_psi))
-  allocate (p_half(nphi_psi+1))
-  allocate (t_main(nl_psi))
-  allocate (t_half(nl_psi+1))
+  allocate (p_main(n_long))
+  allocate (p_half(n_long+1))
+  allocate (t_main(n_lat))
+  allocate (t_half(n_lat+1))
 !
-  ! dphi_psi = twopi/(nphi-1)
-  ! dtheta_psi = pi/(nl-1)
-  dphi_psi = twopi/(nphi_psi-1)
-  dtheta_psi = pi/(nl_psi-1)
+  dphi_psi = twopi/(n_long-1)
+  dtheta_psi = pi/(n_lat-1)
 !
-  do i=1,nphi_psi
+  do i=1,n_long
     p_main(i) = (i-1)*dphi_psi
   enddo
-  do i=1,nphi_psi+1
+  do i=1,n_long+1
     p_half(i) = -half*dphi_psi+(i-1)*dphi_psi
   enddo
-  do i=1,nl_psi
+  do i=1,n_lat
     t_main(i) = (i-1)*dtheta_psi
   enddo
-  do i=1,nl_psi+1
+  do i=1,n_lat+1
     t_half(i) = -half*dtheta_psi + (i-1)*dtheta_psi
   enddo
-  print*,p_main(1),t_main(1),p_main(nphi_psi),t_main(nl_psi)
-  print*,p_half(1),t_half(1),p_half(nphi_psi+1),t_half(nl_psi+1)
+  print*,p_main(1),t_main(1),p_main(n_long),t_main(n_lat)
+  print*,p_half(1),t_half(1),p_half(n_long+1),t_half(n_lat+1)
 !
 !-----------------------------------------------------------------------
-!                                                                      
+!
 !  Differential Rotation coefficients m/s relative to Carrington
-!                                                                      
+!
 !-----------------------------------------------------------------------
-2 format(5(4x,f8.3))
-3 format(6(4x,f8.3))
-  open(unit=2,file=path(1:lenPath) // 'conflow_flow_parameters_aft_v1.txt', &
-       status='old')
-    read(2,2) t0,t1,t2,t3,t4
-    write(*,*)
-    write(*,*) 'Differential rotation coeffs (m/s) t0,t1,t2,t3,t4:'
-    write(*,*) t0,t1,t2,t3,t4
-    coefDR(1)=t0*deltaT/rSun
-    coefDR(2)=t1*deltaT/rSun
-    coefDR(3)=t2*deltaT/rSun
-    coefDR(4)=t3*deltaT/rSun
-    coefDR(5)=t4*deltaT/rSun
+  write(*,*)
+  write(*,*) 'Differential rotation coeffs (m/s) flow_dr_t0,flow_dr_t1,flow_dr_t2,flow_dr_t3,flow_dr_t4:'
+  write(*,*) flow_dr_t0,flow_dr_t1,flow_dr_t2,flow_dr_t3,flow_dr_t4
+  coefDR(1)=flow_dr_t0*dtime/rSun
+  coefDR(2)=flow_dr_t1*dtime/rSun
+  coefDR(3)=flow_dr_t2*dtime/rSun
+  coefDR(4)=flow_dr_t3*dtime/rSun
+  coefDR(5)=flow_dr_t4*dtime/rSun
 !-----------------------------------------------------------------------
 !
 ! Meridional flow speed of supergranules in m/s poleward
 !
 !-----------------------------------------------------------------------
-    read(2,3) s0,s1,s2,s3,s4,s5
-    write(*,*)
-    write(*,*) 'Meridional flow coeffs (m/s) s0,s1,s2,s3,s4,s5:'
-    write(*,*) s0,s1,s2,s3,s4,s5
-    coefMF(1)=s0*deltaT/rSun
-    coefMF(2)=s1*deltaT/rSun
-    coefMF(3)=s2*deltaT/rSun
-    coefMF(4)=s3*deltaT/rSun
-    coefMF(5)=s4*deltaT/rSun
-    coefMF(6)=s5*deltaT/rSun
-  close(2)
+  write(*,*)
+  write(*,*) 'Meridional flow coeffs (m/s) flow_mf_s0,flow_mf_s1,flow_mf_s2,flow_mf_s3,flow_mf_s4,flow_mf_s5:'
+  write(*,*) flow_mf_s0,flow_mf_s1,flow_mf_s2,flow_mf_s3,flow_mf_s4,flow_mf_s5
+  coefMF(1)=flow_mf_s0*dtime/rSun
+  coefMF(2)=flow_mf_s1*dtime/rSun
+  coefMF(3)=flow_mf_s2*dtime/rSun
+  coefMF(4)=flow_mf_s3*dtime/rSun
+  coefMF(5)=flow_mf_s4*dtime/rSun
+  coefMF(6)=flow_mf_s5*dtime/rSun
 !-----------------------------------------------------------------------
 !
 !  Create coefficients for spherical harmonics.
 !
 !-----------------------------------------------------------------------
-  call plmcoef(nl,coef)
+  call plmcoef(n_lat_2x,coef)
 !
   write(*,*)
   write(*,*) 'Legendre recurrance coefficients calculated.'
 !-----------------------------------------------------------------------
-!                                                                     
-!  Construct the convection spectrum.                                 
-!                                                                     
+!
+!  Construct the convection spectrum.
+!
 !-----------------------------------------------------------------------
   do l=1,lmax
     l1=l+1
     el=real(l,r_typ)
-! From Raphael: Hathaway's Spectrum inconsistent with Hathaway et al. 2010 and earlier. 
+! From Raphael: Hathaway's Spectrum inconsistent with Hathaway et al. 2010 and earlier.
     ! amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
     amp2 = 0.08*(1. - tanh(el/300.))
     amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
@@ -454,16 +511,28 @@ program conflow
     end do
   end do
 !
-! [Raphael] Write spectrum on file
+! ****** Write spectrum to file if desired.
 !
-  stfname='Slm'
-  open(unit=1,file=path(1:lenPath) // stfname // ext,access='direct',status='unknown',recl=8*nl)
-    do m=1,nl
-      write(1,rec=m) (ABS(s(l,m)),l=1,nl)
-    end do
-  close(1)
-  write(*,*)
-  write(*,*) 'Velocity spectrum calculated'
+  if (output_spectrum) then
+    allocate (s_abs(n_lat_2x,n_lat_2x))
+    allocate (latscale(n_lat_2x))
+!
+    do concurrent (l=1:n_lat_2x)
+      latscale(l) = real(l,r_typ)
+    enddo
+!
+    do concurrent (l=1:n_lat_2x,m=1:n_lat_2x)
+      s_abs(l,m) = ABS(s(l,m))
+    enddo
+!
+    fname = TRIM(output_directory)//'/'//'spectrum.h5'
+    call write_2d_file (TRIM(fname),n_lat_2x,n_lat_2x,s_abs,latscale,latscale,ierr)
+    print*, "Wrote spectrum to: "//fname
+!
+    deallocate (s_abs)
+  end if
+!
+  write(*,*) 'Velocity spectrum calculated.'
 !
 !-----------------------------------------------------------------------
 !
@@ -505,42 +574,42 @@ program conflow
       BAALP3=(el+em+3.)*(el-em+3.)/((2.*el+7.)*(2.*el+5.))
       BAALP4=(el+em+4.)*(el-em+4.)/((2.*el+9.)*(2.*el+7.))
       BAALP5=(el+em+5.)*(el-em+5.)/((2.*el+11.)*(2.*el+9.))
-!      
+!
 ! -----------------------------------------------------------------------
 ! Raphael: It is the couplings below that take into account
-! the advection equation satisfied by the velocity in presence of 
-! the Meridional Flow (MF) and Differential Rotation (DR). 
+! the advection equation satisfied by the velocity in presence of
+! the Meridional Flow (MF) and Differential Rotation (DR).
 !
-! Here, "Coupling" means that the spectral coefficient for the velocity  
-! components at a given l and m value (S_lm and T_lm in Hathaway et al.) 
-! depend on spectral coefficient at different l values, up to l+/-6. 
+! Here, "Coupling" means that the spectral coefficient for the velocity
+! components at a given l and m value (S_lm and T_lm in Hathaway et al.)
+! depend on spectral coefficient at different l values, up to l+/-6.
 !
-! These couplings come from the projection and orthoganlity of the 
-! associated Legendre Polynomials "P_lm". E.g. their recursion relation 
-! eliminate the powers of cos(theta) of the formula of the DR, which is 
-! why we do not see them anywhere in the algorithm.  
-! Without advection by MF and DR, these coupling terms would not exist. 
+! These couplings come from the projection and orthoganlity of the
+! associated Legendre Polynomials "P_lm". E.g. their recursion relation
+! eliminate the powers of cos(theta) of the formula of the DR, which is
+! why we do not see them anywhere in the algorithm.
+! Without advection by MF and DR, these coupling terms would not exist.
 !
-! See Appendix of Hathaway et al. (2010). However, only the details for 
-! the radial component (R_lm) of the velocity are explicited. 
-! So far, there is no reference showing even a partial derivation of the 
-! couplings for the toroidal and poloidal components (S_lm and T_lm). 
-!  
+! See Appendix of Hathaway et al. (2010). However, only the details for
+! the radial component (R_lm) of the velocity are explicited.
+! So far, there is no reference showing even a partial derivation of the
+! couplings for the toroidal and poloidal components (S_lm and T_lm).
 !
-! TODO: partial or full derivation of the coupling terms for 
+!
+! TODO: partial or full derivation of the coupling terms for
 ! the toroidal and poloidal components (S_lm and T_lm)
-! that is not documented in Dave's papers. 
+! that is not documented in Dave's papers.
 !
-! Outcome: Per Dave's explanations, S_lm and T_lm are not following the 
+! Outcome: Per Dave's explanations, S_lm and T_lm are not following the
 ! the analytical development set by equation (2) and (3) for v_theta
 ! and v_phi. Instead, they are assumed to follow the same development
-! as equation (1) for R_lm to keep things simple. 
+! as equation (1) for R_lm to keep things simple.
 ! This choice was made as (2) and (3) may not be analytically developed.
 ! This sets a possible discrepancy in both
 ! the math and the physics of the evolution of horizontal flow field
-! with respect to what equation (2) and (3) otherwise imposes. 
-! The unrealistic network may be a consequence of this simplification. 
-! 
+! with respect to what equation (2) and (3) otherwise imposes.
+! The unrealistic network may be a consequence of this simplification.
+!
 ! -----------------------------------------------------------------------
 !
 !  Coupling with l+6 component
@@ -689,19 +758,19 @@ program conflow
   end do ! End of l=loop
 !-----------------------------------------------------------------------
 !
-!  Construct series of velocity maps at deltaT (in seconds) intervals
+!  Construct series of velocity maps at dtime (in seconds) intervals
 !
 !-----------------------------------------------------------------------
 !
   write(*,*)
-  write(*,*) 'A time step of ', deltaT, 'seconds will produce ', &
+  write(*,*) 'A time step of ', dtime, 'seconds will produce ', &
              nfiles,' vt and vp flow files.'
   write(*,*)
   flush(OUTPUT_UNIT)
 !
 ! ****** Open text file to list output maps.
 !
-  call ffopen (12,'flow_output_list.csv','rw',ierr)
+  call ffopen (12,TRIM(output_directory)//'/flow_output_list.csv','rw',ierr)
   write (12,'(A11,A1,A11,A1,A11)') &
         'TIME(JD)',',','VTFILENAME',',','VPFILENAME'
   close(12)
@@ -715,8 +784,8 @@ program conflow
 !
 !  Evolve spectral coefficients using 4th order Runga-Kutta
 !
-!  Raphael: In what follows, s and t are the same as S_lm and T_lm 
-!  in Hathaway 2010. 
+!  Raphael: In what follows, s and t are the same as S_lm and T_lm
+!  in Hathaway 2010.
 !
 ! Step 1
 !
@@ -1135,24 +1204,24 @@ program conflow
         xlifetime=10.*3600.*(100./(el+0.1))**2.0
         !        xlifetime=xlifetime/2.
         call RANDOM_NUMBER (rnd)
-        phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(deltaT/xlifetime)
+        phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(dtime/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         s(l1,m1)=(s(l1,m1) + ds(l1,m1,1)/6. + ds(l1,m1,2)/3. + ds(l1,m1,3)/3. + ds(l1,m1,4)/6.)*arg
 
         call RANDOM_NUMBER (rnd)
-        phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(deltaT/xlifetime)
+        phase=Omega(l1,m1)+2.*(rnd-0.5)*sqrt(dtime/xlifetime)
         arg=cos(phase)+xi*sin(phase)
         t(l1,m1)=(t(l1,m1) + dt(l1,m1,1)/6. + dt(l1,m1,2)/3. + dt(l1,m1,3)/3. + dt(l1,m1,4)/6.)*arg
       end do
     end do
     !write(*,*) 'Spectral Coefficients updated'
 !-----------------------------------------------------------------------
-!                                                                     
+!
 !  Calculate the vector velocity components at each latitude.
 !  Equator is at jj=nx/2 + 2.5 due to wrap-around border
 !  j=1 is centered 0.5*dtheta above and below the equator
 !  j=nxhalf is centered 0.5*dtheta inside each pole
-!                                                                     
+!
 !-----------------------------------------------------------------------
     do j=1,nlhalf
       jn=nlhalf+j
@@ -1162,9 +1231,9 @@ program conflow
       sintheta=sin(theta)
       rst=1.0/sintheta
 !-----------------------------------------------------------------------
-!                                                                     
-!  calculate the spectral coefficients for wavenumber m at all x.     
-!                                                                     
+!
+!  calculate the spectral coefficients for wavenumber m at all x.
+!
 !-----------------------------------------------------------------------
       m=0
       m1=m+1
@@ -1173,15 +1242,15 @@ program conflow
       vnorth(m1)=0.
       vsouth(m1)=0.
 !-----------------------------------------------------------------------
-!                                                                     
-!  Split non-axisymmetric signal into equal positive and              
-!  negative freqencies.                                               
-!                                                                     
+!
+!  Split non-axisymmetric signal into equal positive and
+!  negative freqencies.
+!
 !-----------------------------------------------------------------------
       do m=1,lmax-1
         m1=m+1
-        m2=nphi+1-m
-        call plm(m,x,nl,coef,p)
+        m2=n_long_2x+1-m
+        call plm(m,x,n_lat_2x,coef,p)
         sum1=(0.,0.)
         sum2=(0.,0.)
         sum3=(0.,0.)
@@ -1211,7 +1280,7 @@ program conflow
         vnorth(m2)=0.5*conjg(sum3)*rst
         vsouth(m2)=0.5*conjg(sum4)*rst
       end do ! End m-loop
-      do m=lmax,nphi-lmax
+      do m=lmax,n_long_2x-lmax
         m1=m+1
         unorth(m1)=0.
         usouth(m1)=0.
@@ -1219,16 +1288,16 @@ program conflow
         vsouth(m1)=0.
       end do
 !-----------------------------------------------------------------------
-!                                                                     
-!  Calculate the vector velocity components at all phi positions.     
-!                                                                     
-!-----------------------------------------------------------------------
-      call four1(unorth,nphi,-1)
-      call four1(usouth,nphi,-1)
-      call four1(vnorth,nphi,-1)
-      call four1(vsouth,nphi,-1)
 !
-      do i=1,nphi
+!  Calculate the vector velocity components at all phi positions.
+!
+!-----------------------------------------------------------------------
+      call four1(unorth,n_long_2x,-1)
+      call four1(usouth,n_long_2x,-1)
+      call four1(vnorth,n_long_2x,-1)
+      call four1(vsouth,n_long_2x,-1)
+!
+      do i=1,n_long_2x
 !
 ! ****** Get real part of complex values from FFT.
 !
@@ -1239,31 +1308,33 @@ program conflow
       end do ! End phi-loop
     end do ! End latitude-loop
 !-----------------------------------------------------------------------
-!                                                                     
-!  Write longitudinal and co-latitudinal velocity to disk file.       
-!                                                                     
+!
+!  Write longitudinal and co-latitudinal velocity to disk file.
+!
 !-----------------------------------------------------------------------
 !
     wt1 = wtime()
-!   
-    if (trim(gridArg) == 'nonstag' .OR. trim(gridArg) == 'both') then ! start of i/o block
+!
+    if (output_flows_on_uniform_grid) then
       write(velFileNum, '(i0.6)') ifile
       fname='vp' // velFileNum
-      open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
-        do j=1,nl
-          write(1,rec=j) (u(i,j),i=1,nphi)
+      open(unit=1,file=TRIM(output_directory)//'/'//TRIM(fname)//ext,access='direct', &
+           status='unknown',recl=8*n_long_2x)
+        do j=1,n_lat_2x
+          write(1,rec=j) (u(i,j),i=1,n_long_2x)
         end do
       close(1)
 !
       fname='vt' // velFileNum
-      open(unit=1,file=path(1:lenPath) // fname // ext,access='direct',status='unknown',recl=8*nphi)
-        do j=1,nl
-          write(1,rec=j) (v(i,j),i=1,nphi)
+      open(unit=1,file=TRIM(output_directory)//'/'//TRIM(fname)//ext,access='direct', &
+           status='unknown',recl=8*n_long_2x)
+        do j=1,n_lat_2x
+          write(1,rec=j) (v(i,j),i=1,n_long_2x)
         enddo
       close(1)
     end if ! end of Dave's i/o block
 
-    if (trim(gridArg) == 'stag' .OR. trim(gridArg) == 'both') then 
+    if (output_flows_on_staggered_grid) then
 !
 ! ****** Interpolate ConFlow flows into PSI grid flow arrays.
 !
@@ -1272,87 +1343,83 @@ program conflow
 ! ****** Set up v_ext for vt.
 ! ****** Since "v" is in latitude, need to flip theta axis in the process.
 !
-      do ii=2,nphi+1
-        do jj=2,nl+1
-          v_ext(ii,jj) = v(ii-1,nl+1-(jj-1))
+      do ii=2,n_long_2x+1
+        do jj=2,n_lat_2x+1
+          v_ext(ii,jj) = v(ii-1,n_lat_2x+1-(jj-1))
         enddo
       enddo
-  !
-  ! ****** Set "past the pole" values:
-  !
-      pole = SUM(v_ext(2:nphi+1,2))/nphi
+!
+! ****** Set "past the pole" values:
+!
+      pole = SUM(v_ext(2:n_long_2x+1,2))/n_long_2x
       v_ext(:,1) = two*pole - v_ext(:,2)
-      pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
-      v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
-  !
-  ! ****** Set periodicity:
-  !
-      v_ext(1,:) = v_ext(nphi+1,:)
-      v_ext(nphi+2,:) = v_ext(2,:)
-  !
-  ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in theta):
-  !
-      ! call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-      !                nphi,nl-1,p_main,t_half(2:nl),vt_psi(:,2:nl),ierr)
-  !
-      vt_psi(1:nphi_psi, 2:nl_psi) = v_ext(1:nphi:2,2:nl-2:2)
-  !
-  ! ****** Now set poles for PSI vt:
-  !
-      pole = SUM(vt_psi(1:nphi_psi-1,2))/(nphi_psi-1)
-      vt_psi(:,1) = two*pole - vt_psi(:,2)
-      pole = SUM(vt_psi(1:nphi_psi-1,nl_psi))/(nphi_psi-1)
-      vt_psi(:,nl_psi+1) = two*pole - vt_psi(:,nl_psi)
-  !
-  ! ****** VP (NTM,NP) ******
-  !
-  ! ****** Set up v_ext for vp:
-  ! ****** Since "u" is in latitude, need to flip theta axis in the process.
-  !
-      do ii=2,nphi+1
-        do jj=2,nl+1
-          v_ext(ii,jj) = u(ii-1,nl+1-(jj-1))
-        enddo
-      enddo
-  !
-  ! ****** Set "past the pole" values:
-  !
-      pole = SUM(v_ext(2:nphi+1,2))/nphi
-      v_ext(:,1) = two*pole - v_ext(:,2)
-      pole = SUM(v_ext(2:nphi+1,nl+1))/nphi
-      v_ext(:,nl+2) = two*pole - v_ext(:,nl+1)
+!
+      pole = SUM(v_ext(2:n_long_2x+1,n_lat_2x+1))/n_long_2x
+      v_ext(:,n_lat_2x+2) = two*pole - v_ext(:,n_lat_2x+1)
 !
 ! ****** Set periodicity:
 !
-      v_ext(1,:) = v_ext(nphi+1,:)
-      v_ext(nphi+2,:) = v_ext(2,:)
-  !
-  ! ****** Now interpolate into PSI grid (only inner grid for half-mesh in phi):
-  !
-      ! call interp2d (nphi+2,nl+2,p_ext,t_ext,v_ext,                      &
-      !                nphi-1,nl,p_half(2:nphi),t_main,vp_psi(2:nphi,:),ierr)
-  !
-      vp_psi(2:nphi_psi,1:nl_psi) = v_ext(2:nphi-2:2,1:nl:2)
-  !
-  ! ****** Now set periodicity for vp:
-  !
-      vp_psi(1,:) = vp_psi(nphi_psi,:)
-      vp_psi(nphi_psi+1,:) = vp_psi(2,:)
-  !
+      v_ext(1,:) = v_ext(n_long_2x+1,:)
+      v_ext(n_long_2x+2,:) = v_ext(2,:)
+!
+! ****** Now select points on PSI grid (only inner grid for half-mesh in theta):
+!
+      vt_psi(1:n_long, 2:n_lat) = v_ext(1:n_long_2x:2,2:n_lat_2x-2:2)
+!
+! ****** Now set poles for PSI vt:
+!
+      pole = SUM(vt_psi(1:n_long-1,2))/(n_long-1)
+      vt_psi(:,1) = two*pole - vt_psi(:,2)
+!
+      pole = SUM(vt_psi(1:n_long-1,n_lat))/(n_long-1)
+      vt_psi(:,n_lat+1) = two*pole - vt_psi(:,n_lat)
+!
+! ****** VP (NTM,NP) ******
+!
+! ****** Set up v_ext for vp:
+! ****** Since "u" is in latitude, need to flip theta axis in the process.
+!
+      do ii=2,n_long_2x+1
+        do jj=2,n_lat_2x+1
+          v_ext(ii,jj) = u(ii-1,n_lat_2x+1-(jj-1))
+        enddo
+      enddo
+!
+! ****** Set "past the pole" values:
+!
+      pole = SUM(v_ext(2:n_long_2x+1,2))/n_long_2x
+      v_ext(:,1) = two*pole - v_ext(:,2)
+      pole = SUM(v_ext(2:n_long_2x+1,n_lat_2x+1))/n_long_2x
+      v_ext(:,n_lat_2x+2) = two*pole - v_ext(:,n_lat_2x+1)
+!
+! ****** Set periodicity:
+!
+      v_ext(1,:) = v_ext(n_long_2x+1,:)
+      v_ext(n_long_2x+2,:) = v_ext(2,:)
+!
+! ****** Now select points on PSI grid (only inner grid for half-mesh in phi):
+!
+      vp_psi(2:n_long,1:n_lat) = v_ext(2:n_long_2x-2:2,1:n_lat_2x:2)
+!
+! ****** Now set periodicity for vp:
+!
+      vp_psi(1,:) = vp_psi(n_long,:)
+      vp_psi(n_long+1,:) = vp_psi(2,:)
+!
       write(velFileNum, '(i0.6)') ifile
-  !
-      call write_2d_file ('vt'//velFileNum//'.h5',nphi_psi,nl_psi+1,vt_psi,p_main,t_half,ierr)
-      call write_2d_file ('vp'//velFileNum//'.h5',nphi_psi+1,nl_psi,vp_psi,p_half,t_main,ierr)
-  !
-      call ffopen (12,'flow_output_list.csv','a',ierr)
-      write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',', &
-                                trim('vt'//velFileNum//'.h5'),',', &
+!
+      call write_2d_file (TRIM(output_directory)//'/'//'vt'//velFileNum//'.h5',n_long,n_lat+1,vt_psi,p_main,t_half,ierr)
+      call write_2d_file (TRIM(output_directory)//'/'//'vp'//velFileNum//'.h5',n_long+1,n_lat,vp_psi,p_half,t_main,ierr)
+!
+      call ffopen (12,TRIM(output_directory)//'/'//'flow_output_list.csv','a',ierr)
+      write (12,'(F11.5,A1,A11,A1,A11)') curr_time/(3600*24),',',     &
+                                trim('vt'//velFileNum//'.h5'),',',    &
                                 trim('vp'//velFileNum//'.h5')
       close(12)
-  !
-      write(*,*) 'Completed step ',ifile,' of ', nfiles
-      write(*,*) '    max(vt)=',maxval(v),' min(vt)=',minval(v)
-      write(*,*) '    max(vp)=',maxval(u),' min(vp)=',minval(u)
+!
+      write(*,*) 'Completed step ',ifile,' of ', nfiles,              &
+                 ' max(vt)=',maxval(v),' min(vt)=',minval(v),         &
+                 ' max(vp)=',maxval(u),' min(vp)=',minval(u)
       flush(OUTPUT_UNIT)
     end if ! end of PSI i/o block
 !
@@ -1360,7 +1427,7 @@ program conflow
 !
 ! ***** Update time.
 !
-    curr_time = curr_time + deltaT
+    curr_time = curr_time + dtime
 !
   enddo ! End time-loop
 !
@@ -1372,7 +1439,7 @@ program conflow
 !
 end program conflow
 !#######################################################################
-subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
+subroutine write_2d_file (fname,ln1,ln2,f,flow_mf_s1,flow_mf_s2,ierr)
 !
 !-----------------------------------------------------------------------
 !
@@ -1392,10 +1459,10 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
 !
       character(*) :: fname
       real(r_typ), dimension(ln1,ln2) :: f
-      real(r_typ), dimension(ln1) :: s1
-      real(r_typ), dimension(ln2) :: s2
+      real(r_typ), dimension(ln1) :: flow_mf_s1
+      real(r_typ), dimension(ln2) :: flow_mf_s2
       integer :: ln1,ln2
-      real(r_typ) :: t1,wtime
+      real(r_typ) :: flow_dr_t1,wtime
 !
 !-----------------------------------------------------------------------
 !
@@ -1404,7 +1471,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
 !
 !-----------------------------------------------------------------------
 !
-      t1 = wtime()
+      flow_dr_t1 = wtime()
 !
 ! ****** Set the structure components.
 !
@@ -1419,8 +1486,8 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
       allocate (s%scales(2)%f(ln2))
       allocate (s%f(ln1,ln2,1))
 !
-      s%scales(1)%f(:) = s1(:)
-      s%scales(2)%f(:) = s2(:)
+      s%scales(1)%f(:) = flow_mf_s1(:)
+      s%scales(2)%f(:) = flow_mf_s2(:)
       s%f(:,:,1) = f(:,:)
 !
 ! ****** Write the data set.
@@ -1441,7 +1508,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,s1,s2,ierr)
       deallocate (s%scales(2)%f)
       deallocate (s%f)
 !
-      wtime_io = wtime_io + (wtime() - t1)
+      wtime_io = wtime_io + (wtime() - flow_dr_t1)
 !
 end subroutine
 !#######################################################################
@@ -1516,21 +1583,15 @@ function wtime ()
       return
 end function
 !#######################################################################
-subroutine interp2d (nxi,nyi,xi,yi,fi,nx,ny,x,y,f,ierr)
+subroutine read_input_file
 !
 !-----------------------------------------------------------------------
 !
-! ****** Interpolate a 2D field from array FI(NXI,NYI), defined
-! ****** on the mesh XI(NXI) x YI(NYI), into the array F(NX,NY),
-! ****** defined on the mesh X(NX) x Y(NY).
-!
-! ****** Zero values are returned at data points outside the
-! ****** bounds of the XI x YI mesh.
+! ****** Read the input file.
 !
 !-----------------------------------------------------------------------
 !
-      use number_types
-      use constants
+      use input_parameters
 !
 !-----------------------------------------------------------------------
 !
@@ -1538,101 +1599,57 @@ subroutine interp2d (nxi,nyi,xi,yi,fi,nx,ny,x,y,f,ierr)
 !
 !-----------------------------------------------------------------------
 !
-      integer :: nxi,nyi
-      real(r_typ), dimension(nxi) :: xi
-      real(r_typ), dimension(nyi) :: yi
-      real(r_typ), dimension(nxi,nyi) :: fi
-      integer :: nx,ny
-      real(r_typ), dimension(nx) :: x
-      real(r_typ), dimension(ny) :: y
-      real(r_typ), dimension(nx,ny) :: f
+      namelist /conflow_input_parameters/                             &
+               verbose, output_flows_on_uniform_grid,                 &
+               output_flows_on_staggered_grid, output_spectrum,       &
+               flow_dr_t0, flow_dr_t1, flow_dr_t2, flow_dr_t3,        &
+               flow_dr_t4, flow_mf_s0, flow_mf_s1, flow_mf_s2,        &
+               flow_mf_s3, flow_mf_s4, flow_mf_s5, set_random_seed,   &
+               random_seed_value, output_directory, n_lat, n_long,    &
+               tmax, dtime, taper_l
+!
+!-----------------------------------------------------------------------
+!
       integer :: ierr
+      character(80) :: infile='conflow.dat'
 !
 !-----------------------------------------------------------------------
 !
-      integer :: i,j,iip1,jjp1
-      integer :: ii=0,jj=0
-      real(r_typ) :: dummy,ax,ay,xv,yv
+! ****** Read the input file.
 !
-!-----------------------------------------------------------------------
+      call ffopen (8,TRIM(infile),'r',ierr)
 !
-      real(r_typ), external :: flint
-!
-!-----------------------------------------------------------------------
-!
-      ierr=0
-!
-! ****** Check that the scales XI and YI are monotonic.
-!
-      dummy=flint(.true.,zero,nxi,xi,xi,ierr)
-      dummy=flint(.true.,zero,nyi,yi,yi,ierr)
       if (ierr.ne.0) then
         write (*,*)
-        write (*,*) '### ERROR in INTRP2D:'
-        write (*,*) '### Scales are not monotonically increasing.'
-        ierr=1
-        return
+        write (*,*) '### ERROR in READ_INPUT_FILE:'
+        write (*,*) '### Could not open the input file.'
+        write (*,*) 'File name: ',trim(infile)
+        STOP
       end if
 !
-! ****** Interpolate the data.
+      read (8,conflow_input_parameters)
+      close (8)
 !
-      do j=1,ny
-        yv=y(j)
-        if (yv.lt.yi(1).or.yv.gt.yi(nyi)) then
-          f(:,j)=0.
-          cycle
-        else
-          call interp (nyi,yi,yv,jj,jjp1,ay,ierr)
-          if (ierr.ne.0) then
-            f(:,j)=0.
-            cycle
-          end if
-        end if
-        do i=1,nx
-          xv=x(i)
-          if (xv.lt.xi(1).or.xv.gt.xi(nxi)) then
-            f(i,j)=0.
-            cycle
-          else
-            call interp (nxi,xi,xv,ii,iip1,ax,ierr)
-            if (ierr.ne.0) then
-              f(i,j)=0.
-              cycle
-            end if
-          end if
-          f(i,j)=(one-ax)*((one-ay)*fi(ii  ,jj  )+ay*fi(ii  ,jjp1)) &
-                 +ax *((one-ay)*fi(iip1,jj  )+ay*fi(iip1,jjp1))
-        enddo
-      enddo
+! ****** Add input parameter checks here.
+!
 !
 end subroutine
 !#######################################################################
-function flint (check,x,n,xn,fn,ierr)
+subroutine ffopen (iun,fname,mode,ierr)
 !
 !-----------------------------------------------------------------------
 !
-! ****** Interpolate a function linearly.
+! ****** Open file FNAME and link it to unit IUN.
+!
+! ****** If there is an error, this routine returns IERR.ne.0.
 !
 !-----------------------------------------------------------------------
 !
-! ****** The funcion is defined at N nodes, with values given by
-! ****** FN(N) at positions XN(N).  The function value returned is
-! ****** the linear interpolant at X.
-!
-! ****** Note that if X.lt.XN(1), the function value returned
-! ****** is FN(1), and if X.gt.XN(N), the function value returned
-! ****** is FN(N).
-!
-! ****** Call once with CHECK=.true. to check that the values
-! ****** in XN(N) are monotonically increasing.  In this mode
-! ****** the array XN(N) is checked, and X and FN(N) are not
-! ****** accessed.  If the check is passed, IERR=0 is returned.
-! ****** Otherwise, IERR=1 is returned.
-!
-!-----------------------------------------------------------------------
-!
-      use number_types
-      use constants
+! ****** When MODE='r', the file must exist.
+! ****** When MODE='w', the file is created.
+! ****** When MODE='rw', the file must exist, but can be overwritten.
+! ****** When MODE='a', the file is created if it does not exist,
+! ******                otherwise, it is appended.
 !
 !-----------------------------------------------------------------------
 !
@@ -1640,125 +1657,48 @@ function flint (check,x,n,xn,fn,ierr)
 !
 !-----------------------------------------------------------------------
 !
-      logical :: check
-      real(r_typ) :: x
-      integer :: n
-      real(r_typ), dimension(n) :: xn,fn
+      integer :: iun
+      character(*) :: fname
+      character(*) :: mode
       integer :: ierr
-      real(r_typ) :: flint
-!
-!-----------------------------------------------------------------------
-!
-      integer :: i
-      real(r_typ) :: x1,x2,alpha
+      logical :: ex
 !
 !-----------------------------------------------------------------------
 !
       ierr=0
-      flint=0.
 !
-! ****** If CHECK=.true., check the abscissa table.
-!
-      if (check) then
-        if (n.le.0) then
-          write (*,*)
-          write (*,*) '### ERROR in FLINT:'
-          write (*,*) '### Invalid abscissa table dimension.'
-          write (*,*) 'N = ',n
-          ierr=1
-          return
+      if (mode.eq.'r') then
+        open (iun,file=fname,form="FORMATTED",status='old',err=900)
+      else if (mode.eq.'rw') then
+        open (iun,file=fname,form="FORMATTED",status='replace',err=900)
+      else if (mode.eq.'w') then
+        open (iun,file=fname,form="FORMATTED",status='new',err=900)
+      elseif (mode.eq.'a') then
+        inquire(file=fname, exist=ex)
+        if (ex) then
+          open (iun,file=fname,form="FORMATTED",position='append',err=900)
+        else
+          open (iun,file=fname,form="FORMATTED",status='new',err=900)
         end if
-        do i=1,n-1
-          if (xn(i+1).le.xn(i)) then
-            write (*,*)
-            write (*,*) '### ERROR in FLINT:'
-            write (*,*) '### Abscissa table values are not'// &
-                       ' monotonically increasing.'
-            write (*,*) 'N = ',n
-            write (*,*) 'XN = ',xn
-            ierr=1
-            return
-          end if
-        enddo
-        return
-      end if
-!
-! ****** Get the interpolated value.
-!
-      if (x.le.xn(1)) then
-        flint=fn(1)
-      else if (x.gt.xn(n)) then
-        flint=fn(n)
       else
-        do i=1,n-1
-          if (x.ge.xn(i).and.x.lt.xn(i+1)) exit
-        enddo
-        x1=xn(i)
-        x2=xn(i+1)
-        alpha=(x-x1)/(x2-x1)
-        flint=fn(i)*(one-alpha)+fn(i+1)*alpha
+        write (*,*)
+        write (*,*) '### ERROR in FFOPEN:'
+        write (*,*) '### Invalid MODE requested.'
+        write (*,*) 'MODE = ',mode
+        write (*,*) 'File name: ',trim(fname)
+        ierr=2
+        return
       end if
 !
       return
-end function
-!#######################################################################
-subroutine interp (n,x,xv,i,ip1,a,ierr)
 !
-!-----------------------------------------------------------------------
+  900 continue
 !
-! ****** Get the interpolation factor at XV from the table X(N).
-!
-!-----------------------------------------------------------------------
-!
-! ****** This routine does not do the actual interpolation.  Use the
-! ****** returned values of I, IP1, and A to get the interpolated
-! ****** value.
-!
-!-----------------------------------------------------------------------
-!
-      use number_types
-!
-!-----------------------------------------------------------------------
-!
-      implicit none
-!
-!-----------------------------------------------------------------------
-!
-      integer :: n
-      real(r_typ), dimension(n) :: x
-      real(r_typ) :: xv
-      integer :: i,ip1
-      real(r_typ) :: a
-      integer :: ierr
-!
-!-----------------------------------------------------------------------
-!
-      ierr=0
-!
-! ****** Check if the x-scale has only one point.
-!
-      if (n.eq.1.and.xv.eq.x(1)) then
-        ip1=1
-        a=0.
-        return
-      end if
-!
-! ****** Find the interval and compute the interpolation factor.
-!
-      do i=1,n-1
-        if (xv.ge.x(i).and.xv.le.x(i+1)) then
-          ip1=i+1
-          if (x(i).eq.x(i+1)) then
-            a=0.
-          else
-            a=(xv-x(i))/(x(i+1)-x(i))
-          end if
-          return
-        end if
-      enddo
-!
-! ****** ERROR: the value was not found.
-!
+      write (*,*)
+      write (*,*) '### ERROR in FFOPEN:'
+      write (*,*) '### Error while opening the requested file.'
+      write (*,*) 'File name: ',trim(fname)
+      write (*,*) 'MODE = ',mode
       ierr=1
 !
 end subroutine
@@ -1798,14 +1738,19 @@ end subroutine
 !   - BUG FIX: u and v were being written to vt and vp instead of vp and vt.
 !
 ! 03/17/2023, RA/RC, Version 0.6.0:
-!   - Added command line argument to indicate whether to 
+!   - Added command line argument to indicate whether to
 !     output flows to the original AFT-style grid (nonstag),
-!     the PSI HipFT grid (stag), or both.  
+!     the PSI HipFT grid (stag), or both.
 !     Set the input argument to: stag|nonstag|both
 !   - Changed spectrum in order to have flows
-!     resolved at the 512x1024 resoltion with at least 5 
+!     resolved at the 512x1024 resoltion with at least 5
 !     grid cells for the flow blobs.
-!       
+!
+! 03/20/2023, RC, Version 0.7.0:
+!   - Lots of refactoring.
+!   - Added namelist to specify all input parameters.
+!   - Changed output of spectra to hdf5.
+!
 !-----------------------------------------------------------------------
 !
 !#######################################################################
