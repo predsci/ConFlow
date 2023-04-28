@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.7.1'
-      character(*), parameter :: cdate='03/24/2023'
+      character(*), parameter :: cvers='0.8.0'
+      character(*), parameter :: cdate='04/28/2023'
 !
 end module
 !#######################################################################
@@ -194,14 +194,19 @@ module input_parameters
       real(r_typ) :: flow_mf_s4 = zero
       real(r_typ) :: flow_mf_s5 = -28.0_r_typ
 !
-! ****** Parameter to taper modes.
-!
-      integer :: taper_l = 200
-!
 ! ****** Random seed options.
 !
       logical :: set_random_seed = .true.
       integer :: random_seed_value = 12345
+!
+! ****** Spectrum taper options.
+!
+      integer :: spectrum_taper_model = 1
+!           (1) Original taper
+!           (2) Raphael tamper
+!           (3) Ron 1 
+!           (4) Ron 2
+!           (5) Original with cut-off
 !
 end module
 !#######################################################################
@@ -254,15 +259,15 @@ program conflow
   integer :: n_lat_2x, n_long_2x
   integer :: lmax,nlhalf,ifile,nfiles,itime
   complex(r_typ) :: xi,arg,sum1,sum2,sum3,sum4
-  real(r_typ) :: taper_l_r
   real(r_typ) :: n_lat_2x_real
   real(r_typ) :: dphi,dtheta,theta,sintheta,x,rst,eo,v1,v2
-  real(r_typ) :: el,em,amp2,amp3,randamp,phase,taper,xlifetime
+  real(r_typ) :: el,em,randamp,phase,xlifetime
   real(r_typ) :: elfunc,elfuncMF,DR0,DR1,DR2,DR3,DR4,MF0,MF1,MF2,MF3,MF4
   real(r_typ) :: BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3
   real(r_typ) :: BAA0,BAA1,BAA2,BAA3,BAA4,BAA5,BAA6,BAALP4,BAALP5,MF5
   real(r_typ) :: dphi_psi,dtheta_psi,pole
   real(r_typ) :: wtime,wt1,rnd,curr_time
+  real(r_typ) :: ampS,ampT,taper_l0,taper_l1,taper
 !
 !-----------------------------------------------------------------------
 !
@@ -287,9 +292,6 @@ program conflow
   lmax          = n_lat_2x-1
   dphi          = twopi/n_long_2x
   dtheta        = pi/n_lat_2x
-!
-  taper_l_r = real(taper_l,r_typ)
-!
 ! ****** Allocate arrays.
 !
   allocate (               p(n_lat_2x))
@@ -463,36 +465,67 @@ program conflow
 !  Construct the convection spectrum.
 !
 !-----------------------------------------------------------------------
+!
   do l=1,lmax
     l1=l+1
     el=real(l,r_typ)
-    ! [RMC] This will be restructured to allow user more control on the
-    !       tapering method and limits.
+!
     ! From Raphael: Hathaway's Spectrum inconsistent
     !               with Hathaway et al. 2010 and earlier.
-    ! amp2 = 0.08*(1. - tanh(el/165.)) + 0.0024*(1. - tanh(el/2000.))
-    amp2 = 0.08*(1. - tanh(el/300.))
-    amp3 = 1.5*(1. - 0.5*sqrt(el/1000.))/el
-    ! taper=1.0
-    ! if (l .gt. 384) taper=0.5_r_typ*(1.0_r_typ + cos(pi*(l-384.0_r_typ)/(512-384.0_r_typ)))
-    taper=0.5_r_typ*(1.0_r_typ + cos(pi*el/taper_l_r))
-    if (l .gt. taper_l) taper = 0.0_r_typ
-    amp2 = taper*amp2
-    amp3 = taper*amp3
+!
+    ampS = 0.08_r_typ*(one - tanh(el/165.0_r_typ)) + 0.0024_r_typ*(one - tanh(el/2000._r_typ))
+    ampT = 1.5_r_typ*(one - half*sqrt(el/1000.0_r_typ))/el
+!
+    select case (spectrum_taper_model) 
+      case (1)   ! Original ConFlow
+        taper_l0 = 384.0_r_typ
+        taper_l1 = 512.0_r_typ
+        taper = one
+        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))  
+      case (2)   ! Raphel v1
+        taper_l0 = 200.0_r_typ
+        taper_l1 = 200.0_r_typ
+        ampS = 0.08_r_typ*(one - tanh(el/300.0_r_typ))
+        taper = half*(one + cos(pi*el/taper_l1))
+      case (3)  ! Ron v1
+        taper_l0 = 180.0_r_typ
+        taper_l1 = 200.0_r_typ
+        taper = one
+        if (el .gt. taper_l0) taper = (half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0))))**(0.2_r_typ)
+      case (4)  ! Ron v2
+        taper_l0 = 180.0_r_typ
+        taper_l1 = 200.0_r_typ
+        taper = (half*(one + cos(pi*el/taper_l1)))**(0.05_r_typ)
+      case (5)  ! Original ConFlow with hard cut-off
+        taper_l0 = zero
+        taper_l1 = 200.0_r_typ
+        taper = one
+      case default  ! Original ConFlow 
+        taper_l0 = 384.0_r_typ
+        taper_l1 = 512.0_r_typ
+        taper = one
+        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))  
+    end select
+!
+    if (el .gt. taper_l1) taper = zero  
+!
+    ampS = taper*ampS
+    ampT = taper*ampT
+!
     do m=1,l
       m1=m+1
       call RANDOM_NUMBER (rnd)
-      phase=2.0_r_typ*pi*rnd
-      arg=cos(phase)+xi*sin(phase)
+      phase = two*pi*rnd
+      arg = cos(phase) + xi*sin(phase)
       call RANDOM_NUMBER (rnd)
-      randamp=1.8*rnd
-      s(l1,m1)=randamp*amp2*arg
+      randamp = 1.8*rnd
+      s(l1,m1) = randamp*ampS*arg
       call RANDOM_NUMBER (rnd)
-      phase=2.*pi*rnd
-      arg=cos(phase)+xi*sin(phase)
+      phase = two*pi*rnd
+      arg = cos(phase) + xi*sin(phase)
       call RANDOM_NUMBER (rnd)
-      randamp=1.8*rnd
-      t(l1,m1)=randamp*amp3*arg
+      randamp = 1.8*rnd
+      t(l1,m1) = randamp*ampT*arg
     end do
   end do
 !
@@ -1649,7 +1682,7 @@ subroutine read_input_file
                flow_dr_t4, flow_mf_s0, flow_mf_s1, flow_mf_s2,        &
                flow_mf_s3, flow_mf_s4, flow_mf_s5, set_random_seed,   &
                random_seed_value, output_directory, n_lat, n_long,    &
-               tmax, dtime, taper_l
+               tmax, dtime, spectrum_taper_model
 !
 !-----------------------------------------------------------------------
 !
@@ -1796,6 +1829,10 @@ end subroutine
 ! 03/24/2023, RC, Version 0.7.1:
 !   - Added new timers
 !   - Some cosmetic changes.
+!
+! 04/26/2023, RC, Version 0.8.0:
+!   - Added spectrum_taper_model input parameter to select type of 
+!     spectrum model to use (5 options currently).
 !
 !-----------------------------------------------------------------------
 !
