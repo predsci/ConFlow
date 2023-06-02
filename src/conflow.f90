@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.8.0'
-      character(*), parameter :: cdate='04/28/2023'
+      character(*), parameter :: cvers='0.8.1'
+      character(*), parameter :: cdate='06/02/2023'
 !
 end module
 !#######################################################################
@@ -498,7 +498,7 @@ program conflow
         taper = (half*(one + cos(pi*el/taper_l1)))**(0.05_r_typ)
       case (5)  ! Original ConFlow with hard cut-off
         taper_l0 = zero
-        taper_l1 = 200.0_r_typ
+        taper_l1 = 170.0_r_typ
         taper = one
       case default  ! Original ConFlow 
         taper_l0 = 384.0_r_typ
@@ -1833,6 +1833,9 @@ end subroutine
 ! 04/26/2023, RC, Version 0.8.0:
 !   - Added spectrum_taper_model input parameter to select type of 
 !     spectrum model to use (5 options currently).
+!
+! 06/02/2023, RC, Version 0.8.1:
+!   - Changed spectra cutoff in option 5 to 170 instead of 200.
 !
 !-----------------------------------------------------------------------
 !
