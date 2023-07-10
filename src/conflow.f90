@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.8.1'
-      character(*), parameter :: cdate='06/02/2023'
+      character(*), parameter :: cvers='0.8.2'
+      character(*), parameter :: cdate='07/10/2023'
 !
 end module
 !#######################################################################
@@ -202,6 +202,8 @@ module input_parameters
 ! ****** Spectrum taper options.
 !
       integer :: spectrum_taper_model = 1
+      real(r_typ) :: spectrum_taper_val1 = 180
+      real(r_typ) :: spectrum_taper_val2 = 204
 !           (1) Original taper
 !           (2) Raphael tamper
 !           (3) Ron 1 
@@ -488,17 +490,17 @@ program conflow
         ampS = 0.08_r_typ*(one - tanh(el/300.0_r_typ))
         taper = half*(one + cos(pi*el/taper_l1))
       case (3)  ! Ron v1
-        taper_l0 = 180.0_r_typ
-        taper_l1 = 200.0_r_typ
+        taper_l0 = spectrum_taper_val1
+        taper_l1 = spectrum_taper_val2
         taper = one
         if (el .gt. taper_l0) taper = (half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0))))**(0.2_r_typ)
       case (4)  ! Ron v2
-        taper_l0 = 180.0_r_typ
-        taper_l1 = 200.0_r_typ
+        taper_l0 = spectrum_taper_val1
+        taper_l1 = spectrum_taper_val2
         taper = (half*(one + cos(pi*el/taper_l1)))**(0.05_r_typ)
       case (5)  ! Original ConFlow with hard cut-off
         taper_l0 = zero
-        taper_l1 = 170.0_r_typ
+        taper_l1 = spectrum_taper_val2
         taper = one
       case default  ! Original ConFlow 
         taper_l0 = 384.0_r_typ
@@ -1682,7 +1684,8 @@ subroutine read_input_file
                flow_dr_t4, flow_mf_s0, flow_mf_s1, flow_mf_s2,        &
                flow_mf_s3, flow_mf_s4, flow_mf_s5, set_random_seed,   &
                random_seed_value, output_directory, n_lat, n_long,    &
-               tmax, dtime, spectrum_taper_model
+               tmax, dtime, spectrum_taper_model, spectrum_taper_val1,&
+               spectrum_taper_val2
 !
 !-----------------------------------------------------------------------
 !
@@ -1836,6 +1839,10 @@ end subroutine
 !
 ! 06/02/2023, RC, Version 0.8.1:
 !   - Changed spectra cutoff in option 5 to 170 instead of 200.
+!
+! 07/10/2023, RC, Version 0.8.2:
+!   - Added some taper parameters to input file.
+!     Now onw can set the cutoff for method 5.
 !
 !-----------------------------------------------------------------------
 !
