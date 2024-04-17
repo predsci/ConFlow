@@ -63,6 +63,23 @@ module ident
 !
 end module
 !#######################################################################
+module number_types
+!
+!-----------------------------------------------------------------------
+! ****** Basic number types.
+! ****** This module is used to set the default precision for REALs.
+!-----------------------------------------------------------------------
+!
+      use iso_fortran_env
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+      integer, parameter :: r_typ=REAL64
+!
+end module
+!#######################################################################
 module timing
 !
       use number_types
@@ -1529,7 +1546,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,flow_mf_s1,flow_mf_s2,ierr)
 !-----------------------------------------------------------------------
 !
       use number_types
-      use ds_def
+      use sds_def
       use timing
 !
 !-----------------------------------------------------------------------
@@ -1546,7 +1563,7 @@ subroutine write_2d_file (fname,ln1,ln2,f,flow_mf_s1,flow_mf_s2,ierr)
 !
 !-----------------------------------------------------------------------
 !
-      type(ds) :: s
+      type(sds) :: s
       integer :: ierr
 !
 !-----------------------------------------------------------------------
@@ -1713,74 +1730,6 @@ subroutine read_input_file
 !
 end subroutine
 !#######################################################################
-subroutine ffopen (iun,fname,mode,ierr)
-!
-!-----------------------------------------------------------------------
-!
-! ****** Open file FNAME and link it to unit IUN.
-!
-! ****** If there is an error, this routine returns IERR.ne.0.
-!
-!-----------------------------------------------------------------------
-!
-! ****** When MODE='r', the file must exist.
-! ****** When MODE='w', the file is created.
-! ****** When MODE='rw', the file must exist, but can be overwritten.
-! ****** When MODE='a', the file is created if it does not exist,
-! ******                otherwise, it is appended.
-!
-!-----------------------------------------------------------------------
-!
-      implicit none
-!
-!-----------------------------------------------------------------------
-!
-      integer :: iun
-      character(*) :: fname
-      character(*) :: mode
-      integer :: ierr
-      logical :: ex
-!
-!-----------------------------------------------------------------------
-!
-      ierr=0
-!
-      if (mode.eq.'r') then
-        open (iun,file=fname,form="FORMATTED",status='old',err=900)
-      else if (mode.eq.'rw') then
-        open (iun,file=fname,form="FORMATTED",status='replace',err=900)
-      else if (mode.eq.'w') then
-        open (iun,file=fname,form="FORMATTED",status='new',err=900)
-      elseif (mode.eq.'a') then
-        inquire(file=fname, exist=ex)
-        if (ex) then
-          open (iun,file=fname,form="FORMATTED",position='append',err=900)
-        else
-          open (iun,file=fname,form="FORMATTED",status='new',err=900)
-        end if
-      else
-        write (*,*)
-        write (*,*) '### ERROR in FFOPEN:'
-        write (*,*) '### Invalid MODE requested.'
-        write (*,*) 'MODE = ',mode
-        write (*,*) 'File name: ',trim(fname)
-        ierr=2
-        return
-      end if
-!
-      return
-!
-  900 continue
-!
-      write (*,*)
-      write (*,*) '### ERROR in FFOPEN:'
-      write (*,*) '### Error while opening the requested file.'
-      write (*,*) 'File name: ',trim(fname)
-      write (*,*) 'MODE = ',mode
-      ierr=1
-!
-end subroutine
-!#######################################################################
 !
 !-----------------------------------------------------------------------
 !
@@ -1843,6 +1792,9 @@ end subroutine
 ! 07/10/2023, RC, Version 0.8.2:
 !   - Added some taper parameters to input file.
 !     Now onw can set the cutoff for method 5.
+!
+! 07/10/2023, RC, Version 0.9.0:
+!   - Integrated number_types, renames psi_io code.
 !
 !-----------------------------------------------------------------------
 !
