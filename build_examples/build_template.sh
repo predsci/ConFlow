@@ -94,7 +94,7 @@ if [ ! -e conflow ]; then
   exit 1
 fi
 $echo "==> Copying conflow executable to: ${CONFLOW_HOME}/bin/conflow"
-cp conflow ${CONFLOW_HOME}/bin/conflow/
+cp conflow ${CONFLOW_HOME}/bin/conflow
 ${echo} "${cG}==> Build complete!${cX}"
 ${echo}      "    Please add the following to your shell startup (e.g. .bashrc, .profile, etc.):"
 ${echo} "${cC}    export PATH=${CONFLOW_HOME}/bin:\$PATH${cX}"
