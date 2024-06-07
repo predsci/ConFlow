@@ -2,4 +2,10 @@ Makefile
 *.h5
 *.csv
 notebooks
+bin/conflow
+src/build.err
+src/build.log
+src/conflow
+src/conflow.f90~
+
 

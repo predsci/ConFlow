@@ -90,6 +90,8 @@ module timing
       real(r_typ) :: wtime_tmp2  = 0.
       real(r_typ) :: wtime_io    = 0.
       real(r_typ) :: wtime_vcalc = 0.
+      real(r_typ) :: wtime_vcalc_plm = 0.
+      real(r_typ) :: wtime_vcalc_ft = 0.
       real(r_typ) :: wtime_scalc = 0.
       real(r_typ) :: wtime_setup = 0.
       real(r_typ) :: wtime_total = 0.
@@ -223,7 +225,7 @@ module input_parameters
       real(r_typ) :: spectrum_taper_val2 = 204
 !           (1) Original taper
 !           (2) Raphael tamper
-!           (3) Ron 1 
+!           (3) Ron 1
 !           (4) Ron 2
 !           (5) Original with cut-off
 !
@@ -285,7 +287,7 @@ program conflow
   real(r_typ) :: BAALM4,BAALM3,BAALM2,BAALM1,BAALP0,BAALP1,BAALP2,BAALP3
   real(r_typ) :: BAA0,BAA1,BAA2,BAA3,BAA4,BAA5,BAA6,BAALP4,BAALP5,MF5
   real(r_typ) :: dphi_psi,dtheta_psi,pole
-  real(r_typ) :: wtime,wt1,rnd,curr_time
+  real(r_typ) :: wtime,wt1,wt2,wt3,wt4,rnd,curr_time
   real(r_typ) :: ampS,ampT,taper_l0,taper_l1,taper
 !
 !-----------------------------------------------------------------------
@@ -495,12 +497,12 @@ program conflow
     ampS = 0.08_r_typ*(one - tanh(el/165.0_r_typ)) + 0.0024_r_typ*(one - tanh(el/2000._r_typ))
     ampT = 1.5_r_typ*(one - half*sqrt(el/1000.0_r_typ))/el
 !
-    select case (spectrum_taper_model) 
+    select case (spectrum_taper_model)
       case (1)   ! Original ConFlow
         taper_l0 = 384.0_r_typ
         taper_l1 = 512.0_r_typ
         taper = one
-        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))  
+        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))
       case (2)   ! Raphel v1
         taper_l0 = 200.0_r_typ
         taper_l1 = 200.0_r_typ
@@ -519,14 +521,14 @@ program conflow
         taper_l0 = zero
         taper_l1 = spectrum_taper_val2
         taper = one
-      case default  ! Original ConFlow 
+      case default  ! Original ConFlow
         taper_l0 = 384.0_r_typ
         taper_l1 = 512.0_r_typ
         taper = one
-        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))  
+        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))
     end select
 !
-    if (el .gt. taper_l1) taper = zero  
+    if (el .gt. taper_l1) taper = zero
 !
     ampS = taper*ampS
     ampT = taper*ampT
@@ -1300,10 +1302,13 @@ program conflow
 !  negative frequencies.
 !
 !-----------------------------------------------------------------------
+!
       do m=1,lmax-1
         m1=m+1
         m2=n_long_2x+1-m
+!        wt3 = wtime()
         call plm(m,x,n_lat_2x,coef,p)
+!        wtime_vcalc_plm = wtime_vcalc_plm + (wtime() - wt3)
         sum1=(0.,0.)
         sum2=(0.,0.)
         sum3=(0.,0.)
@@ -1345,10 +1350,12 @@ program conflow
 !  Calculate the vector velocity components at all phi positions.
 !
 !-----------------------------------------------------------------------
+      wt2 = wtime()
       call four1(unorth,n_long_2x,-1)
       call four1(usouth,n_long_2x,-1)
       call four1(vnorth,n_long_2x,-1)
       call four1(vsouth,n_long_2x,-1)
+      wtime_vcalc_ft = wtime_vcalc_ft + (wtime() - wt2)
 !
 ! ****** Get real part of complex values from FFT.
 !
@@ -1494,6 +1501,196 @@ program conflow
 !
 end program conflow
 !#######################################################################
+subroutine plmcoef(lmaxp,coef)
+!
+!-----------------------------------------------------------------------
+!
+! ****** Calculate coefficient matrix for generation of legendre
+! ****** polynomials of degree l and order m in subroutine plm().
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use constants
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      real(r_typ) :: coef(lmaxp,lmaxp)
+      integer :: lmaxp
+!
+!-----------------------------------------------------------------------
+!
+      integer*8 :: m,lmax,l
+      real(r_typ) :: x1
+!
+!-----------------------------------------------------------------------
+!
+      lmax = lmaxp-1
+      m = 0
+      x1 = half
+      coef(1,1) = sqrt(x1)
+!
+      do concurrent(l=m+1:lmax)
+        coef(l+1,m+1) = sqrt(((two*l + one)/(l + m))* &
+                         ((two*l - one)/(l - m)))
+        coef(m+1,l+1) = sqrt(((two*l + one)/(l + m))* &
+                         ((l + m - one)/(l - m))*((l - m - one)/(two*l - three)))
+      enddo
+!
+      do m=1,lmax-1
+        x1 = x1*(two*m + one)/(two*m)
+        coef(m+1,m+1) = sqrt(x1)
+        do concurrent(l=m+1:lmax)
+          coef(l+1,m+1) = sqrt(((two*l + one)/(l + m))* &
+                           ((two*l - one)/(l - m)))
+          coef(m+1,l+1) = sqrt(((two*l + one)/(l + m))* &
+                           ((l + m - one)/(l - m))*((l - m - one)/(two*l - three)))
+        enddo
+      enddo
+!
+      m = lmax
+      x1 = x1*(two*m + one)/(two*m)
+!
+      coef(m+1,m+1) = sqrt(x1)
+!
+end subroutine plmcoef
+!#######################################################################
+subroutine plm(m,x,lmaxp,coef,p)
+!
+!-----------------------------------------------------------------------
+!
+! ****** This subroutine calculates the associated legendre polynomial
+! ****** using the recurrance relation for increasing degree l for given m
+! ****** The coefficients for the relation are calculated once in
+! ****** S/R PLMCOEF and passed as arguement coef.
+! ****** The results, p(l,m,x), are returned in array p(l+1).
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use constants
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+      integer :: m,lmaxp
+      real(r_typ) :: x
+!
+!-----------------------------------------------------------------------
+!
+      real(r_typ) :: p(lmaxp),coef(lmaxp,lmaxp)
+      integer :: lls
+!
+!-----------------------------------------------------------------------
+!
+! ****** lls is the index to the first non-zero p.
+! ****** mm .le. lls .le. lmaxp+1
+! ****** If all p's are zero; i.e., .lt. 10**minlp, then lls=lmaxp+1
+!
+!-----------------------------------------------------------------------
+!
+      integer, parameter :: minlp = -20
+      real(r_typ), parameter :: r10p10 = 1.0e+10_r_typ
+      real(r_typ), parameter :: r10m10 = 1.0e-10_r_typ
+      real(r_typ) :: x2,alp,pa,pm1,pm2
+      integer :: l,ll,mm,lp,lp1,lmax,isgn
+      real(r_typ), dimension(20) :: rlpa
+!
+      rlpa = (/1.0e-1,  1.0e-2,  1.0e-3,  1.0e-4,  1.0e-5,  &
+               1.0e-6,  1.0e-7,  1.0e-8,  1.0e-9,  1.0e-10, &
+               1.0e-11, 1.0e-12, 1.0e-13, 1.0e-14, 1.0e-15, &
+               1.0e-16, 1.0e-17, 1.0e-18, 1.0e-19, 1.0e-20/)
+!
+      mm = m + 1
+      lls = mm
+      lmax = lmaxp - one
+!
+      do concurrent(l=0:lmax)
+        p(l+1)=0.
+      enddo
+!
+      if (abs(x) .gt. one) then
+        write(*,*) 'ERROR! Legendre polynomial argument out of range.'
+        return
+      end if
+!
+      if (mm .gt. lmaxp) then
+        write(*,*) 'ERROR! Order of Legendre polynomial out of range.'
+        return
+      end if
+!
+      if (x .eq. one .and. m .eq. 0) then
+        do concurrent(l=0:lmax)
+          p(l+1) = sqrt(l + half)
+        enddo
+        return
+      end if
+!
+      if (x .eq. -one .and. m .eq. 0) then
+        do concurrent(l=0:lmax)
+          isgn = 1 - 2*mod(l,2)
+          p(l+1) = isgn*sqrt(l + half)
+        enddo
+        return
+      end if
+!
+      if (abs(x) .eq. one) return
+!
+      x2 = sqrt(one - x*x)
+      alp = log10(coef(mm,mm)) + real(m,r_typ)*log10(x2)
+      lp = int(alp)
+!
+      if (lp .lt. minlp) then
+        alp = alp - real(lp,r_typ)
+        pa = ten**alp
+        lls = mm + 1
+      else
+        pa = coef(mm,mm)*(x2**m)
+        p(mm) = pa
+      end if
+!
+      pm2 = 0.
+      pm1 = pa
+!
+      if (lp .lt. minlp) then
+        do ll = mm+1,lmaxp
+          pa = coef(ll,mm)*x*pm1 - coef(mm,ll)*pm2
+          pm2 = pm1
+          pm1 = pa
+          if (pa .gt. r10p10) then
+            pm2 = pm2*r10m10
+            pm1 = pm1*r10m10
+            lp = lp + 10
+            lp1 = lp
+            if (lp1 .ge. minlp) then
+              pm2 = pm2*rlpa(-lp1)
+              pm1 = pm1*rlpa(-lp1)
+              lp = 0
+              exit
+            end if
+          end if
+          lls = ll + 1
+        enddo
+      end if
+!
+      if (lls .ge. lmaxp) return
+!
+      do concurrent(ll=lls+1:lmaxp)
+        pa = coef(ll,mm)*x*pm1 - coef(mm,ll)*pm2
+        pm2 = pm1
+        pm1 = pa
+        p(ll) = pm1
+      enddo
+!
+end subroutine plm
+!#######################################################################
 subroutine write_welcome_message
 !
 !-----------------------------------------------------------------------
@@ -1631,6 +1828,8 @@ subroutine write_timing
       write(*,FMT) "--> SETUP:         ",wtime_setup
       write(*,FMT) "--> COMP Spectrum: ",wtime_scalc
       write(*,FMT) "--> COMP Velocity: ",wtime_vcalc
+   !   write(*,FMT) "    -->   PLM:     ",wtime_vcalc_plm
+      write(*,FMT) "    -->    FT:     ",wtime_vcalc_ft
       write(*,FMT) "--> I/O:           ",wtime_io
       write(*,"(a40)") repeat("-", 40)
 !
@@ -1783,7 +1982,7 @@ end subroutine
 !   - Some cosmetic changes.
 !
 ! 04/26/2023, RC, Version 0.8.0:
-!   - Added spectrum_taper_model input parameter to select type of 
+!   - Added spectrum_taper_model input parameter to select type of
 !     spectrum model to use (5 options currently).
 !
 ! 06/02/2023, RC, Version 0.8.1:
@@ -1794,8 +1993,14 @@ end subroutine
 !     Now onw can set the cutoff for method 5.
 !
 ! 07/10/2023, RC, Version 0.9.0:
-!   - Integrated number_types, renames psi_io code.
+!   - Integrated number_types, renamed io code to psi_io.
 !
+! 06/xx/2024, RC, Version 1.0.0:
+!   - Added timer.
+!   - Integrated plm codes into main code.
+!   - Revamped inputs for spectrum:
+!
+!   [- Added new fourier transform code]
 !-----------------------------------------------------------------------
 !
 !#######################################################################
