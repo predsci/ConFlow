@@ -36,16 +36,16 @@
   flow_mf_s4 = 0.
   flow_mf_s5 = -28.0
 !
-! ****** Parameter to taper modes.
+! ****** Parameter to choose spectrum modification method.
 !
 ! (1) Original taper
-! (2) Raphael tamper
-! (3) Ron 1
-! (4) Ron 2
-! (5) Original with cut-off
+! (2) Original with cut-off
 !
-  spectrum_taper_model = 5
-  spectrum_taper_val2 = 340.0
+  spectrum_mod_model = 2
+!
+! ****** Specral cutoff for spectrum mod method 2.
+!
+  spectral_cutoff = 340.0
 !
 ! ****** Random seed options.
 !

@@ -34,7 +34,7 @@
 !     by David H. Hathaway
 !
 !#######################################################################
-! Copyright 2022.
+! Copyright 2024.
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
 ! you may not use this file except in compliance with the License.
@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='0.8.2'
-      character(*), parameter :: cdate='07/10/2023'
+      character(*), parameter :: cvers='1.0.0'
+      character(*), parameter :: cdate='08/09/2024'
 !
 end module
 !#######################################################################
@@ -220,14 +220,8 @@ module input_parameters
 !
 ! ****** Spectrum taper options.
 !
-      integer :: spectrum_taper_model = 1
-      real(r_typ) :: spectrum_taper_val1 = 180
-      real(r_typ) :: spectrum_taper_val2 = 204
-!           (1) Original taper
-!           (2) Raphael tamper
-!           (3) Ron 1
-!           (4) Ron 2
-!           (5) Original with cut-off
+      integer :: spectrum_mod_model = 2
+      real(r_typ) :: spectral_cutoff = 340.0_r_typ
 !
 end module
 !#######################################################################
@@ -497,35 +491,20 @@ program conflow
     ampS = 0.08_r_typ*(one - tanh(el/165.0_r_typ)) + 0.0024_r_typ*(one - tanh(el/2000._r_typ))
     ampT = 1.5_r_typ*(one - half*sqrt(el/1000.0_r_typ))/el
 !
-    select case (spectrum_taper_model)
+    select case (spectrum_mod_model)
       case (1)   ! Original ConFlow
         taper_l0 = 384.0_r_typ
         taper_l1 = 512.0_r_typ
         taper = one
         if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))
-      case (2)   ! Raphel v1
-        taper_l0 = 200.0_r_typ
-        taper_l1 = 200.0_r_typ
-        ampS = 0.08_r_typ*(one - tanh(el/300.0_r_typ))
-        taper = half*(one + cos(pi*el/taper_l1))
-      case (3)  ! Ron v1
-        taper_l0 = spectrum_taper_val1
-        taper_l1 = spectrum_taper_val2
-        taper = one
-        if (el .gt. taper_l0) taper = (half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0))))**(0.2_r_typ)
-      case (4)  ! Ron v2
-        taper_l0 = spectrum_taper_val1
-        taper_l1 = spectrum_taper_val2
-        taper = (half*(one + cos(pi*el/taper_l1)))**(0.05_r_typ)
-      case (5)  ! Original ConFlow with hard cut-off
+      case (2)   ! Original ConFlow with hard cutoff
         taper_l0 = zero
-        taper_l1 = spectrum_taper_val2
+        taper_l1 = spectral_cutoff
         taper = one
-      case default  ! Original ConFlow
-        taper_l0 = 384.0_r_typ
-        taper_l1 = 512.0_r_typ
+      case default  ! Original ConFlow with hard cutoff
+        taper_l0 = zero
+        taper_l1 = spectral_cutoff
         taper = one
-        if (el .gt. taper_l0) taper = half*(one + cos(pi*(el - taper_l0)/(taper_l1 - taper_l0)))
     end select
 !
     if (el .gt. taper_l1) taper = zero
@@ -1351,10 +1330,10 @@ program conflow
 !
 !-----------------------------------------------------------------------
       wt2 = wtime()
-      call four1(unorth,n_long_2x,-1)
-      call four1(usouth,n_long_2x,-1)
-      call four1(vnorth,n_long_2x,-1)
-      call four1(vsouth,n_long_2x,-1)
+      call fft_transform (unorth,n_long_2x,-1)
+      call fft_transform (usouth,n_long_2x,-1)
+      call fft_transform (vnorth,n_long_2x,-1)
+      call fft_transform (vsouth,n_long_2x,-1)
       wtime_vcalc_ft = wtime_vcalc_ft + (wtime() - wt2)
 !
 ! ****** Get real part of complex values from FFT.
@@ -1691,6 +1670,120 @@ subroutine plm(m,x,lmaxp,coef,p)
 !
 end subroutine plm
 !#######################################################################
+subroutine fft_transform (data_array, num_points, direction)
+!
+!-----------------------------------------------------------------------
+!
+! ****** This subroutine computes a Fourier transform.
+!
+!-----------------------------------------------------------------------
+!
+      use number_types
+      use constants
+!
+!-----------------------------------------------------------------------
+!
+      implicit none
+!
+!-----------------------------------------------------------------------
+!
+! ****** Input parameters
+!
+      integer :: direction, num_points
+      complex(r_typ) :: data_array(num_points)
+!
+!-----------------------------------------------------------------------
+!
+! ****** Local variables
+!
+      real(r_typ) :: real_part(2*num_points)  ! Real & imaginary parts
+      integer :: idx, bit_reversed_idx, step, step_size
+      integer :: index, max_step_size, num_elements
+      real(r_typ) :: temp_real, temp_imag, angle, sine_term
+      real(r_typ) :: cosine_term, cos_component, sin_component, temp
+!
+! ****** Number of elements in the real_part array 
+! ****** (twice the number of complex points)
+!
+      num_elements = 2 * num_points
+!
+! ****** Pack complex data into real_part array (real and imaginary parts)
+!
+      do idx = 1, num_points
+        ! Store real part
+        real_part(2*idx-1) = real(data_array(idx), r_typ)  
+        ! Store imaginary part
+        real_part(2*idx)   = aimag(data_array(idx))
+      enddo
+!
+! ****** Bit-reversal permutation: Reorder data for in-place FFT
+!
+      bit_reversed_idx = 1
+      do idx = 1, num_elements, 2
+        if (bit_reversed_idx > idx) then
+          ! Swap the elements
+          temp_real = real_part(bit_reversed_idx)
+          temp_imag = real_part(bit_reversed_idx+1)
+          real_part(bit_reversed_idx) = real_part(idx)
+          real_part(bit_reversed_idx+1) = real_part(idx+1)
+          real_part(idx) = temp_real
+          real_part(idx+1) = temp_imag
+        end if
+!
+! ****** Calculate the next bit-reversed index
+!
+        step = num_elements / 2
+        do while (bit_reversed_idx > step .and. step >= 2)
+          bit_reversed_idx = bit_reversed_idx - step
+          step = step / 2
+        enddo
+        bit_reversed_idx = bit_reversed_idx + step
+      enddo
+!
+! ****** Perform the FFT using the Cooley-Tukey algorithm
+!
+      max_step_size = 2
+      do while (num_elements > max_step_size)
+        step_size = 2 * max_step_size
+        angle = twopi / (direction * max_step_size)
+        cosine_term = -two * sin(half * angle)**2
+        sine_term = sin(angle)
+        cos_component = one
+        sin_component = zero
+
+        do index = 1, max_step_size, 2
+          do idx = index, num_elements, step_size
+            bit_reversed_idx = idx + max_step_size
+            temp_real = cos_component * real_part(bit_reversed_idx) &
+                        - sin_component * real_part(bit_reversed_idx + 1)
+            temp_imag = cos_component * real_part(bit_reversed_idx + 1) &
+                        + sin_component * real_part(bit_reversed_idx)
+            real_part(bit_reversed_idx) = real_part(idx) - temp_real
+            real_part(bit_reversed_idx + 1) = real_part(idx + 1) - temp_imag
+            real_part(idx) = real_part(idx) + temp_real
+            real_part(idx + 1) = real_part(idx + 1) + temp_imag
+          enddo
+!
+! ****** Update the sine and cosine components
+!
+          temp = cos_component
+          cos_component = cos_component * cosine_term &
+                          - sin_component * sine_term + cos_component
+          sin_component = sin_component * cosine_term &
+                          + temp * sine_term + sin_component
+        enddo
+
+        max_step_size = step_size
+      enddo
+!
+! ****** Unpack real_part array back into complex data_array
+!
+      do idx = 1, num_points
+        data_array(idx) = real_part(2*idx-1) + (zero, one) * real_part(2*idx)
+      enddo
+
+end subroutine fft_transform
+!#######################################################################
 subroutine write_welcome_message
 !
 !-----------------------------------------------------------------------
@@ -1900,8 +1993,7 @@ subroutine read_input_file
                flow_dr_t4, flow_mf_s0, flow_mf_s1, flow_mf_s2,        &
                flow_mf_s3, flow_mf_s4, flow_mf_s5, set_random_seed,   &
                random_seed_value, output_directory, n_lat, n_long,    &
-               tmax, dtime, spectrum_taper_model, spectrum_taper_val1,&
-               spectrum_taper_val2
+               tmax, dtime, spectrum_mod_model, spectral_cutoff
 !
 !-----------------------------------------------------------------------
 !
@@ -1992,15 +2084,16 @@ end subroutine
 !   - Added some taper parameters to input file.
 !     Now onw can set the cutoff for method 5.
 !
-! 07/10/2023, RC, Version 0.9.0:
+! 07/10/2023, RC+RA, Version 1.0.0:
 !   - Integrated number_types, renamed io code to psi_io.
-!
-! 06/xx/2024, RC, Version 1.0.0:
-!   - Added timer.
+!   - Added timers.
 !   - Integrated plm codes into main code.
 !   - Revamped inputs for spectrum:
+!     spectral_mod_method:  1: original conflow 
+!                           2: original spectrum with a cutoff.
+!     spectral_cutoff:  Only used for method 2, default is 340.
+!   - Added new fourier transform code to replace "four1".
 !
-!   [- Added new fourier transform code]
 !-----------------------------------------------------------------------
 !
 !#######################################################################

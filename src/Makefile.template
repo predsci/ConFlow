@@ -2,7 +2,7 @@ FC = <FC>
 
 FFLAGS = <FFLAGS> -I<HDF5_INCLUDE_DIR>
 
-OBJS = psi_io.o four1.o conflow.o
+OBJS = psi_io.o conflow.o
 
 LDFLAGS = -L<HDF5_LIB_DIR> <HDF5_LIB_FLAGS>
 
@@ -16,9 +16,6 @@ clean:
 
 psi_io.o: psi_io.f90
 	$(FC) $(FFLAGS) -c psi_io.f90
-
-four1.o : four1.f90
-	$(FC) $(FFLAGS) -c four1.f90
 
 conflow.o : conflow.f90
 	$(FC) $(FFLAGS) -c conflow.f90
