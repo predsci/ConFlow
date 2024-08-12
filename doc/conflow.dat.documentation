@@ -1,0 +1,85 @@
+&conflow_input_parameters
+!
+  verbose = .false.
+!
+!       -----> Set this to .true. to output info for use with debugging.
+!
+  output_flows_on_uniform_grid = .false.
+!
+!       -----> Output the flow maps on original uniform grid in binary format.
+!       -----> There is no CSV fle list output for these binary files.
+!
+  output_flows_on_staggered_grid = .true.
+!
+!       -----> Output the flow maps on the HipFT staggered grid in HDF5 format.
+!       -----> Note that this samples at twice the resolution in order
+!       -----> to get the staggered grid values without interpolation.
+!
+  output_spectrum = .false.
+!
+!       -----> Output the spectrum in a 2D HDF5 file.
+!
+  output_directory = '.'
+!
+!       -----> Directory where the output flow maps should go.
+!
+  n_lat = 512
+  n_long = 1024
+!
+!       -----> Resolution in latitude and longitude.
+!       -----> For staggered grid output, vt is n_lat+1 x n_long
+!       ----->                      while vp is n_lat   x n-long+1
+!
+  tmax = 86400.0
+!
+!       -----> End time in seconds.
+!
+  dtime = 900.0
+!
+!       -----> Time cadense for flow output in seconds.
+!
+  flow_dr_t0 = 46.0
+  flow_dr_t1 = 0.
+  flow_dr_t2 = -262.0
+  flow_dr_t3 = 0.
+  flow_dr_t4 = -379.0
+!
+!       -----> Differential rotation coefficients (m/s).
+!
+  flow_mf_s0 = 0.
+  flow_mf_s1 = 22.0
+  flow_mf_s2 = 0.
+  flow_mf_s3 = 11.0
+  flow_mf_s4 = 0.
+  flow_mf_s5 = -28.0
+!
+!       -----> Meridional flow coefficients (m/s).
+!
+! ****** Parameter to choose spectrum modification method.
+!
+! (1) Original taper
+! (2) Original with cut-off
+!
+  spectrum_mod_model = 2
+!
+!       -----> Parameter to choose spectrum modification method:
+!       ----->     1: Original spectrum with original taper method.
+!       ----->     2: Original spectrum with hard cut-off at "spectral_cutoff".
+!
+  spectral_cutoff = 340.0
+!
+!       -----> Sepctral cut-off value for use with "spectrum_mod_model=2".
+!
+! ****** Random seed options.
+!
+  set_random_seed = .false.
+!
+!       -----> Manually set the random seed value.
+!
+  random_seed_value = 12345
+!
+!       -----> Random seed value.  Only used if "set_random_seed=.true.".
+/
+!
+! RUN DESCRIPTION GOES HERE.
+!

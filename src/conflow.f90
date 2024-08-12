@@ -181,9 +181,9 @@ module input_parameters
 !
 ! ****** Output options.
 !
-      logical :: output_flows_on_uniform_grid = .true.
+      logical :: output_flows_on_uniform_grid = .false.
       logical :: output_flows_on_staggered_grid = .true.
-      logical :: output_spectrum = .true.
+      logical :: output_spectrum = .false.
       character(512) :: output_directory = '.'
 !
 ! ****** Resolution.
@@ -215,7 +215,7 @@ module input_parameters
 !
 ! ****** Random seed options.
 !
-      logical :: set_random_seed = .true.
+      logical :: set_random_seed = .false.
       integer :: random_seed_value = 12345
 !
 ! ****** Spectrum taper options.
