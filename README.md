@@ -8,8 +8,12 @@
 
 ## OVERVIEW ##
   
-ConFlow creates velocity maps of supergranule flows.  
-  
+<img width="200" align=right src="doc/SG_sphere_lon0_lat60.png" alt="ConFlow"/>ConFlow computes a sequence of velocity maps for supergranule flows on the surface of the Sun.  Such photospheric velocity fields are essential for developing and testing realistic flux transport models and the analysis techniques for observational data.  
+
+Conflow generates these maps analytically by specifying the convection spectrum of poloidal and toroidal modes (e.g., [Hathaway (1988)](https://doi.org/10.1007/BF00147251), [Hathaway et al. (2010)](https://doi.org/10.1088/0004-637X/725/1/1082)), and advecting them with the Sun’s axisymmetric differential rotation and meridional flows.
+
+Conflow creates the velocity maps on a spherical surface grid of phi (longitude) and theta (colatitude). It can output the maps on a [staggered grid](https://github.com/predsci/conflow/doc/psi_hipft_grid.png) in [HDF5](https://www.hdfgroup.org/solutions/hdf5) format or on an unstaggered grid in binary format. The staggered grid is designed to be directly used in  [OFT](https://github.com/predsci/oft)'s surface flux transport code [HipFT](https://github.com/predsci/hipft).  When using the maps with HipFT, one should set HipFT's meridional and differential flow coefficients to those used in the ConFlow computation.  
+
 --------------------------------  
    
 ## HOW TO BUILD CONFLOW ##
@@ -55,7 +59,7 @@ The code can be multi-threaded.  This requires proper setting of the `OMP_NUM_TH
 
 ### Solution Output ###
   
-The output of ConFlow are HDF5 `vt` and `vp` velocity component map files in longitude-colatitude coordinates.  
+The output of ConFlow (using a staggered grid) are HDF5 `vt` and `vp` velocity component map files in longitude-colatitude coordinates.  
 A CSV file called `flow_output_list.csv` is generated that lists the output files with the time of output.  
 
 --------------------------------
