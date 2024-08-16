@@ -12,7 +12,7 @@
 
 Conflow generates these maps analytically by specifying the convection spectrum of poloidal and toroidal modes (e.g., [Hathaway (1988)](https://doi.org/10.1007/BF00147251), [Hathaway et al. (2010)](https://doi.org/10.1088/0004-637X/725/1/1082)), and advecting them with the Sun’s axisymmetric differential rotation and meridional flows.
 
-Conflow creates the velocity maps on a spherical surface grid of phi (longitude) and theta (colatitude). It can output the maps on a [staggered grid](https://github.com/predsci/conflow/doc/psi_hipft_grid.png) in [HDF5](https://www.hdfgroup.org/solutions/hdf5) format or on an unstaggered grid in binary format. The staggered grid is designed to be directly used in  [OFT](https://github.com/predsci/oft)'s surface flux transport code [HipFT](https://github.com/predsci/hipft).  When using the maps with HipFT, one should set HipFT's meridional and differential flow coefficients to those used in the ConFlow computation.  
+Conflow creates the velocity maps on a spherical surface grid of phi (longitude) and theta (colatitude). It can output the maps on a [staggered grid](https://github.com/predsci/ConFlow/blob/main/doc/psi_hipft_grid.png) in [HDF5](https://www.hdfgroup.org/solutions/hdf5) format or on an unstaggered grid in binary format. The staggered grid is designed to be directly used in  [OFT](https://github.com/predsci/oft)'s surface flux transport code [HipFT](https://github.com/predsci/hipft).  When using the maps with HipFT, one should set HipFT's meridional and differential flow coefficients to those used in the ConFlow computation.  
 
 --------------------------------  
    
