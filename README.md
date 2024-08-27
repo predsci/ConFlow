@@ -1,6 +1,6 @@
 <img width="200" src="conflow_logo_small.png" alt="ConFlow"/>
   
-# ConFlow: Super Granular Convective Flow Generator 
+# ConFlow: Convective Flow Generator 
   
 [Predictive Science Inc.](https://www.predsci.com)  
 
