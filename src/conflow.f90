@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='1.0.0'
-      character(*), parameter :: cdate='08/09/2024'
+      character(*), parameter :: cvers='1.0.1'
+      character(*), parameter :: cdate='10/30/2024'
 !
 end module
 !#######################################################################
@@ -352,7 +352,7 @@ program conflow
 !
 ! ****** Initialize random number generator.
 !
-  call RANDOM_INIT (.true., .true.)
+!  call RANDOM_INIT (.true., .true.)
 
   if (set_random_seed) then
     call RANDOM_SEED (size=seed_n)
@@ -1400,12 +1400,16 @@ program conflow
 !
 ! ****** Set periodicity:
 !
-      v_ext(1,:) = v_ext(n_long_2x+1,:)
+      v_ext(1,:)           = v_ext(n_long_2x+1,:)
       v_ext(n_long_2x+2,:) = v_ext(2,:)
 !
 ! ****** Now select points on PSI grid (only inner grid for half-mesh in theta):
 !
       vt_psi(1:n_long, 2:n_lat) = v_ext(1:n_long_2x:2,2:n_lat_2x-2:2)
+!
+! ****** Now ensure periodicity for vt:
+!
+      vt_psi(1,:) = vt_psi(n_long,:)
 !
 ! ****** Now set poles for PSI vt:
 !
@@ -2093,6 +2097,15 @@ end subroutine
 !                           2: original spectrum with a cutoff.
 !     spectral_cutoff:  Only used for method 2, default is 340.
 !   - Added new fourier transform code to replace "four1".
+!
+! 10/30/2024, RC, Version 1.0.1:
+!   - Removed RANDOM_INIT() in order to allow conflow to be compiled
+!     with the NVIDIA compiler.  According to NVIDIA:
+!     "I talked with engineering and they said that RANDOM_INIT is only 
+!      useful with multiple images and co-arrays. RANDOM_INIT with a 
+!      single image is the same as RANDOM_SEED. So don’t see a reason 
+!      to implement it until images are supported (which will be in 
+!      the future flang based compiler)."
 !
 !-----------------------------------------------------------------------
 !
