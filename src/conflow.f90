@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='1.0.1'
-      character(*), parameter :: cdate='10/30/2024'
+      character(*), parameter :: cvers='1.0.2'
+      character(*), parameter :: cdate='12/23/2024'
 !
 end module
 !#######################################################################
@@ -351,9 +351,9 @@ program conflow
   allocate (vsouth(n_long_2x))
 !
 ! ****** Initialize random number generator.
+! ****** If not setting a custom seed value, 
+! ****** initialize a random one.
 !
-!  call RANDOM_INIT (.true., .true.)
-
   if (set_random_seed) then
     call RANDOM_SEED (size=seed_n)
     allocate (seed_old(seed_n))
@@ -361,6 +361,8 @@ program conflow
     call RANDOM_SEED(get=seed_old)
     seed_new(:)=random_seed_value
     call RANDOM_SEED(put=seed_new)
+  else
+    call RANDOM_SEED()
   end if
 !
 !-----------------------------------------------------------------------
@@ -2107,6 +2109,11 @@ end subroutine
 !      to implement it until images are supported (which will be in 
 !      the future flang based compiler)."
 !
+! 12/23/2024, RC, Version 1.0.2:
+!   - Fixed bug where the random seed was the same from run to run
+!     even when set_random_seed=.false.
+!     This was caused by the previous change (oops).
+!     
 !-----------------------------------------------------------------------
 !
 !#######################################################################
