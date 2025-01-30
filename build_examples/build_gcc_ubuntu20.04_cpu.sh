@@ -38,7 +38,7 @@ HDF5_LIB_FLAGS="-lhdf5_serial_fortran -lhdf5_serialhl_fortran -lhdf5_serial -lhd
 # Please set the compile flags based on your compiler and hardware setup.
 ###########################################################################
 
-FFLAGS="-O3 -march=native -ftree-parallelize-loops=${OMP_NUM_THREADS}"
+FFLAGS="-O3 -march=native"
 
 ###########################################################################
 #             END OF USER CONFIG.  DO NOT EDIT BELOW.                     #

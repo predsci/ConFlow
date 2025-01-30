@@ -58,8 +58,8 @@ module ident
 !-----------------------------------------------------------------------
 !
       character(*), parameter :: cname='Conflow'
-      character(*), parameter :: cvers='1.0.2'
-      character(*), parameter :: cdate='12/23/2024'
+      character(*), parameter :: cvers='1.0.3'
+      character(*), parameter :: cdate='01/30/2025'
 !
 end module
 !#######################################################################
@@ -540,12 +540,14 @@ program conflow
     allocate (s_abs(n_lat_2x,n_lat_2x))
     allocate (latscale(n_lat_2x))
 !
-    do concurrent (l=1:n_lat_2x)
+    do l=1,n_lat_2x
       latscale(l) = real(l,r_typ)
     enddo
 !
-    do concurrent (l=1:n_lat_2x,m=1:n_lat_2x)
-      s_abs(l,m) = ABS(s(l,m))
+    do l=1,n_lat_2x
+      do m=1,n_lat_2x
+        s_abs(l,m) = ABS(s(l,m))
+      enddo
     enddo
 !
     fname = TRIM(output_directory)//'/'//'spectrum.h5'
@@ -1320,7 +1322,7 @@ program conflow
         vsouth(m2)=0.5*conjg(sum4)*rst
       end do ! End m-loop
 !
-      do concurrent (m=lmax:n_long_2x-lmax)
+      do m=lmax,n_long_2x-lmax
         unorth(m+1)=0.
         usouth(m+1)=0.
         vnorth(m+1)=0.
@@ -1340,7 +1342,7 @@ program conflow
 !
 ! ****** Get real part of complex values from FFT.
 !
-      do concurrent (i=1:n_long_2x)
+      do i=1,n_long_2x
         u(i,jn)=real(unorth(i),r_typ)
         u(i,js)=real(usouth(i),r_typ)
         v(i,jn)=real(vnorth(i),r_typ)
@@ -1519,7 +1521,7 @@ subroutine plmcoef(lmaxp,coef)
       x1 = half
       coef(1,1) = sqrt(x1)
 !
-      do concurrent(l=m+1:lmax)
+      do l=m+1,lmax
         coef(l+1,m+1) = sqrt(((two*l + one)/(l + m))* &
                          ((two*l - one)/(l - m)))
         coef(m+1,l+1) = sqrt(((two*l + one)/(l + m))* &
@@ -1529,7 +1531,7 @@ subroutine plmcoef(lmaxp,coef)
       do m=1,lmax-1
         x1 = x1*(two*m + one)/(two*m)
         coef(m+1,m+1) = sqrt(x1)
-        do concurrent(l=m+1:lmax)
+        do l=m+1,lmax
           coef(l+1,m+1) = sqrt(((two*l + one)/(l + m))* &
                            ((two*l - one)/(l - m)))
           coef(m+1,l+1) = sqrt(((two*l + one)/(l + m))* &
@@ -1597,7 +1599,7 @@ subroutine plm(m,x,lmaxp,coef,p)
       lls = mm
       lmax = lmaxp - one
 !
-      do concurrent(l=0:lmax)
+      do l=0,lmax
         p(l+1)=0.
       enddo
 !
@@ -1612,14 +1614,14 @@ subroutine plm(m,x,lmaxp,coef,p)
       end if
 !
       if (x .eq. one .and. m .eq. 0) then
-        do concurrent(l=0:lmax)
+        do l=0,lmax
           p(l+1) = sqrt(l + half)
         enddo
         return
       end if
 !
       if (x .eq. -one .and. m .eq. 0) then
-        do concurrent(l=0:lmax)
+        do l=0,lmax
           isgn = 1 - 2*mod(l,2)
           p(l+1) = isgn*sqrt(l + half)
         enddo
@@ -1667,7 +1669,7 @@ subroutine plm(m,x,lmaxp,coef,p)
 !
       if (lls .ge. lmaxp) return
 !
-      do concurrent(ll=lls+1:lmaxp)
+      do ll=lls+1,lmaxp
         pa = coef(ll,mm)*x*pm1 - coef(mm,ll)*pm2
         pm2 = pm1
         pm1 = pa
@@ -2113,6 +2115,10 @@ end subroutine
 !   - Fixed bug where the random seed was the same from run to run
 !     even when set_random_seed=.false.
 !     This was caused by the previous change (oops).
+!
+! 01/30/2025, RC, Version 1.0.3:
+!   - Changed `do concurrent` loops back to regular do loops.
+!     The parallelization with nvfortran was yielding wrong results.
 !     
 !-----------------------------------------------------------------------
 !

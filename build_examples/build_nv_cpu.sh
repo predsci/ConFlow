@@ -25,8 +25,8 @@ FC=nvfortran
 # the SAME COMPILER used here, and is in the run-time environment.
 #################################################################
 
-HDF5_INCLUDE_DIR=<PATH>/include
-HDF5_LIB_DIR=<PATH>/lib
+HDF5_INCLUDE_DIR=${PS_EXT_DEPS_HOME}/hdf5/include
+HDF5_LIB_DIR=${PS_EXT_DEPS_HOME}/hdf5/lib
 
 ##################################################################
 # Please set the HDF5 linker flags to match the installed version.
@@ -38,7 +38,7 @@ HDF5_LIB_FLAGS="-lhdf5_fortran -lhdf5hl_fortran -lhdf5 -lhdf5_hl"
 # Please set the compile flags based on your compiler and hardware setup.
 ###########################################################################
 
-FFLAGS="-fast -mtune=native -stdpar=multicore"
+FFLAGS="-O3 -march=native"
 
 ###########################################################################
 #             END OF USER CONFIG.  DO NOT EDIT BELOW.                     #
