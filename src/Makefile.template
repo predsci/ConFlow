@@ -1,6 +1,6 @@
 FC = <FC>
 
-FFLAGS = <FFLAGS> -I<HDF5_INCLUDE_DIR>
+FFLAGS = <FRTFLAGS> -I<HDF5_INCLUDE_DIR>
 
 OBJS = psi_io.o conflow.o
 
@@ -9,6 +9,9 @@ LDFLAGS = -L<HDF5_LIB_DIR> <HDF5_LIB_FLAGS>
 all: $(OBJS)
 	$(FC) $(FFLAGS) $(OBJS) $(LDFLAGS) -o conflow
 	rm *.mod *.o 2>/dev/null
+
+install:
+	mv conflow ../bin/
 
 clean:
 	rm -f conflow 2>/dev/null

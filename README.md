@@ -16,25 +16,20 @@ Conflow creates the velocity maps on a spherical surface grid of phi (longitude)
 
 --------------------------------  
    
-## HOW TO BUILD CONFLOW ##
+## HOW TO BUILD CONFLOW
   
-ConFlow has been tested to work using GCC's `gfortran` (>8) compiler.  
-It is recommended to use the latest compiler version available.  
-
-HipFT requires the [HDF5](https://www.hdfgroup.org/solutions/hdf5) library.  
-The library must be compiled by the same compiler ConFlow is using.  
-When using the default system compiler (often GCC), the system's HDF5 dev packages should work.  
-
-1. Find the build script from the `build_examples` folder that is closest to your setup and copy it into the top-level directory.  
-2. Modify the script to set the `HDF5` library paths/flags and compiler flags compatible with your system environment.  
-3. Modify the script to set the compiler options to reflect your setup.  
-4. If using GCC's auto parallelization, set your `OMP_NUM_THREADS` environment variable to the number of threads you want to run with.  
-5. Run the build script (for example, `./my_build.sh`).  
-6. It is recommended to add the `bin` folder to your system path.  
+The included `build.sh` script will take a configuration file and generate a Makefile and build the code.  
+The folder `conf` contains example configuration files for various compilers and systems.  
+We recommend copying the configuration file closest to your setup and then modifying it to confomr to your compiler and system (such as `HDF5` library paths/flags, compiler flags, etc.).  
+  
+Given a configure script `conf/my_custom_build.conf`, the build script is invoked as:  
+```
+> ./build.sh ./conf/my_custom_build.conf
+```
 
 --------------------------------  
 
-## HOW TO RUN CONFLOW ##
+## HOW TO RUN CONFLOW
   
 ### Setting Input Options  
   
@@ -55,7 +50,6 @@ To run `ConFlow`, set the desired run parameters into a file called  `conflow.da
   
 `./conflow`  
   
-The code can be multi-threaded.  This requires proper setting of the `OMP_NUM_THREADS` environment variable before compilation when using GCC and its auto parallelization `ftree-parallelize-loops` flag.  
 
 ### Solution Output ###
   
