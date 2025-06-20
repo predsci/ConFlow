@@ -1,4 +1,4 @@
-<img width="200" src="conflow_logo_small.png" alt="ConFlow"/>
+<img width="200" src="doc/conflow_logo_small.png" alt="ConFlow"/>
   
 # ConFlow: Convective Flow Generator 
   
